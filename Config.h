@@ -43,6 +43,10 @@ constexpr unsigned long PAUSA_APOS_MANOBRA_MS = 150;
 constexpr float MARGEM_EMPATE_CM = 5.0f;  // diferenca de espaco abaixo da qual os lados empatam
 
 constexpr bool SEM_ECO_LIVRE = true;
+// Sem eco ate ECO_PERDIDO_JANELA_MS depois de uma leitura frontal valida de ate
+// ECO_PERDIDO_PERTO_CM conta como muito perto (o sensor perde o eco colado no objeto).
+constexpr float ECO_PERDIDO_PERTO_CM = 50.0f;
+constexpr unsigned long ECO_PERDIDO_JANELA_MS = 500;
 constexpr unsigned long TEMPO_POR_CELULA_MS = 500;
 constexpr int IMPRIMIR_MAPA_A_CADA_N_CELULAS = 4;
 constexpr unsigned long INTERVALO_LOG_MS = 500;

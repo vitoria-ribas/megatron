@@ -62,6 +62,24 @@ bool Navigation::isBlocked(float distanceCm) const {
   return distanceCm >= 0 && distanceCm <= Config::LIMITE_CM;
 }
 
+// O HC-SR04 perde o eco quando o objeto fica muito perto ou inclinado. Sem eco
+// logo depois de ver algo perto na frente conta como muito perto, nao como livre.
+float Navigation::frontReading(float distanceCm) {
+  if (distanceCm >= 0) {
+    lastValidFrontCm = distanceCm;
+    lastValidFrontAt = millis();
+    return distanceCm;
+  }
+
+  if (lastValidFrontCm >= 0 &&
+      lastValidFrontCm <= Config::ECO_PERDIDO_PERTO_CM &&
+      millis() - lastValidFrontAt <= Config::ECO_PERDIDO_JANELA_MS) {
+    Serial.println("SEM ECO logo apos obstaculo perto: tratando como muito perto.");
+    return 0.0f;
+  }
+  return distanceCm;
+}
+
 void Navigation::stop() {
   motors.stop();
 
@@ -111,6 +129,7 @@ void Navigation::turn(bool left) {
   stop();
   Serial.println(left ? "GIRANDO ESQUERDA" : "GIRANDO DIREITA");
   ++turnCount;
+  lastValidFrontCm = -1.0f;  // a leitura antiga era de outra direcao
   delay(Config::PAUSA_ANTES_MANOBRA_MS);
 
   const int leftMotor = left ? -1 : 1;
@@ -203,7 +222,7 @@ void Navigation::analyzeObstacle() {
   stop();
   delay(Config::PAUSA_ANTES_MANOBRA_MS);
 
-  float front = sensor.readFiltered();
+  float front = frontReading(sensor.readFiltered());
   if (isFree(front)) {
     Serial.println("Frente liberada.");
     return;
@@ -221,7 +240,7 @@ void Navigation::analyzeObstacle() {
   float diagonalLeft, left, diagonalRight, right;
   scanSides(diagonalLeft, left, diagonalRight, right);
 
-  front = sensor.readFiltered();
+  front = frontReading(sensor.readFiltered());
   printDistance("F=", front);
   Serial.println();
 
@@ -289,7 +308,7 @@ void Navigation::analyzeObstacle() {
 }
 
 void Navigation::update() {
-  const float front = sensor.readOnce();
+  const float front = frontReading(sensor.readOnce());
   const bool blocked = isBlocked(front);
 
   // Imprime a leitura so periodicamente ou quando ha obstaculo, para o Serial ficar legivel.

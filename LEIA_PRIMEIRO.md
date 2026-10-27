@@ -57,6 +57,7 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 - A cada impressão do mapa sai uma linha `STATS` em CSV (tempo, células visitadas, revisitas, obstáculos, giros, rés e desvios por repetição). Veja `DOCUMENTACAO_TECNICA.md` para usá-las na análise.
 - O mapa é impresso no Monitor Serial no início, a cada `IMPRIMIR_MAPA_A_CADA_N_CELULAS` células percorridas e sempre que o robô toma uma decisão (giro ou beco sem saída). A distância frontal durante o avanço é impressa a cada `INTERVALO_LOG_MS` (500 ms) ou sempre que há obstáculo.
 - `SEM_ECO_LIVRE` controla se ausência de eco conta como caminho livre. O valor padrão é `true`; leia as limitações abaixo antes de mantê-lo.
+- **Exceção para objeto colado:** o HC-SR04 perde o eco quando o objeto fica muito perto ou inclinado. Se a frente ficar sem eco até `ECO_PERDIDO_JANELA_MS` (500 ms) depois de uma leitura válida de até `ECO_PERDIDO_PERTO_CM` (50 cm), a leitura conta como muito perto e o robô para e recua. O Monitor Serial mostra `SEM ECO logo apos obstaculo perto`.
 
 ## Como testar
 

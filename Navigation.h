@@ -29,6 +29,8 @@ class Navigation {
   int cellsSincePrint = 0;
   unsigned long lastLogAt = 0;
   int cellsSinceRepetitionCheck = 0;
+  float lastValidFrontCm = -1.0f;
+  unsigned long lastValidFrontAt = 0;
 
   // Metricas da exploracao, impressas nas linhas STATS.
   int turnCount = 0;
@@ -38,6 +40,7 @@ class Navigation {
 
   bool isFree(float distanceCm) const;
   bool isBlocked(float distanceCm) const;
+  float frontReading(float distanceCm);
   void stop();
   bool reverse();
   void turn(bool left);
