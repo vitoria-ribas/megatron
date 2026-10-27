@@ -81,7 +81,7 @@ O robô usa o mapa em dois momentos:
 1. **Diante de um obstáculo, com os dois lados livres.** Ele escolhe o lado com mais células desconhecidas nas próximas 3 células (`ALCANCE_AVALIACAO`). Se empatar, escolhe o lado com menos passagens nessas células. Se empatar de novo, escolhe o lado com mais espaço medido e, por último, alterna o lado preferido.
 2. **Durante o avanço, ao entrar numa área repetida.** Quando a célula atual já tem `LIMITE_REVISITAS` passagens ou mais (padrão 2), o robô para e olha os lados. Ele só vira se um lado estiver livre **e** levar a uma área menos explorada que a da frente, pelo mesmo critério do item 1. Caso contrário, segue em frente. Para não parar a cada célula, essa verificação ocorre no máximo a cada `CELULAS_ENTRE_VERIFICACOES` células (padrão 3).
 
-Os dois usos compartilham `compareExploration()`. Com `EVITAR_REPETICAO = false`, a verificação durante o avanço é desligada e a escolha de lado volta a considerar só as células desconhecidas, como na versão anterior. Isso permite comparar os dois comportamentos nos testes.
+A verificação durante o avanço e o critério de visitas só funcionam com `EVITAR_REPETICAO = true` no `Config.h` (desligada por padrão; veja as chaves de comportamento no `LEIA_PRIMEIRO.md`). Os dois usos compartilham `compareExploration()`. Com `EVITAR_REPETICAO = false`, a verificação durante o avanço é desligada e a escolha de lado volta a considerar só as células desconhecidas, como na versão anterior. Isso permite comparar os dois comportamentos nos testes.
 
 ## 6. Métricas para a análise (linhas STATS)
 

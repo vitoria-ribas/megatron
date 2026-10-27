@@ -71,7 +71,7 @@ float Navigation::frontReading(float distanceCm) {
     return distanceCm;
   }
 
-  if (lastValidFrontCm >= 0 &&
+  if (Config::REGRA_ECO_PERDIDO && lastValidFrontCm >= 0 &&
       lastValidFrontCm <= Config::ECO_PERDIDO_PERTO_CM &&
       millis() - lastValidFrontAt <= Config::ECO_PERDIDO_JANELA_MS) {
     Serial.println("SEM ECO logo apos obstaculo perto: tratando como muito perto.");
@@ -230,11 +230,11 @@ void Navigation::analyzeObstacle() {
 
   map.markObstacle(map.heading());
 
-  // Muito perto: recua e depois varre os lados para escolher a direcao.
+  // Muito perto: recua e, com VARRER_APOS_RE, varre os lados para escolher a direcao.
   bool reversed = false;
   if (front >= 0 && front <= Config::MUITO_PERTO_CM) {
-    if (reverse()) {
-      return;  // limite de res: ja girou para sair do beco
+    if (reverse() || !Config::VARRER_APOS_RE) {
+      return;  // ja girou para sair do beco, ou comportamento original
     }
     reversed = true;
   }
@@ -255,7 +255,7 @@ void Navigation::analyzeObstacle() {
   }
 
   if (!reversed && front >= 0 && front <= Config::MUITO_PERTO_CM) {
-    if (reverse()) {
+    if (reverse() || !Config::VARRER_APOS_RE) {
       return;
     }
   }
