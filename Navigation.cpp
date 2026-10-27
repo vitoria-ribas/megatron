@@ -209,10 +209,16 @@ void Navigation::analyzeObstacle() {
 
 void Navigation::update() {
   const float front = sensor.readOnce();
-  printDistance("Frente=", front);
-  Serial.println();
+  const bool blocked = isBlocked(front);
 
-  if (isBlocked(front)) {
+  // Imprime a leitura so periodicamente ou quando ha obstaculo, para o Serial ficar legivel.
+  if (blocked || millis() - lastLogAt >= Config::INTERVALO_LOG_MS) {
+    lastLogAt = millis();
+    printDistance("Frente=", front);
+    Serial.println();
+  }
+
+  if (blocked) {
     stop();
     analyzeObstacle();
     return;

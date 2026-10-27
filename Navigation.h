@@ -27,6 +27,7 @@ class Navigation {
   unsigned long advanceStartedAt = 0;
   unsigned long lastCellStepAt = 0;
   int cellsSincePrint = 0;
+  unsigned long lastLogAt = 0;
   bool preferLeft = true;
 
   bool isFree(float distanceCm) const;

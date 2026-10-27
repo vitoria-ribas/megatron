@@ -40,5 +40,6 @@ constexpr int MAX_RES_SEGUIDAS = 2;
 constexpr bool SEM_ECO_LIVRE = true;
 constexpr unsigned long TEMPO_POR_CELULA_MS = 500;
 constexpr int IMPRIMIR_MAPA_A_CADA_N_CELULAS = 4;
+constexpr unsigned long INTERVALO_LOG_MS = 500;
 
 }  // namespace Config
