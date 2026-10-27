@@ -10,6 +10,7 @@ void GridMap::reset() {
   for (int r = 0; r < TAMANHO; ++r) {
     for (int c = 0; c < TAMANHO; ++c) {
       cells[r][c] = DESCONHECIDO;
+      visits[r][c] = 0;
     }
   }
   posX = ORIGEM;
@@ -78,10 +79,46 @@ char GridMap::headingChar(int direction) {
 
 // O robo esteve aqui, entao a celula e livre mesmo que antes tenha sido marcada
 // como obstaculo (a pose estimada por tempo deriva).
+char GridMap::robotChar(int direction) {
+  switch (direction) {
+    case 0:
+      return '^';
+    case 1:
+      return '>';
+    case 2:
+      return 'v';
+    default:
+      return '<';
+  }
+}
+
 void GridMap::markVisited() {
   if (inBounds(posX, posY)) {
     cells[posY][posX] = LIVRE;
+    if (visits[posY][posX] < 255) {
+      ++visits[posY][posX];
+    }
   }
+}
+
+int GridMap::visitsHere() const {
+  return visits[posY][posX];
+}
+
+int GridMap::visitsAhead(int direction) const {
+  int dx, dy;
+  dxdy(direction, dx, dy);
+
+  int total = 0;
+  for (int i = 1; i <= ALCANCE_AVALIACAO; ++i) {
+    const int gx = posX + dx * i;
+    const int gy = posY + dy * i;
+    if (!inBounds(gx, gy)) {
+      break;
+    }
+    total += visits[gy][gx];
+  }
+  return total;
 }
 
 void GridMap::markObstacle(int direction) {
@@ -181,13 +218,14 @@ void GridMap::printMap() const {
   for (int r = 0; r < TAMANHO; ++r) {
     for (int c = 0; c < TAMANHO; ++c) {
       if (c == posX && r == posY) {
-        Serial.print('R');
+        Serial.print(robotChar(dir));
         continue;
       }
 
       switch (cells[r][c]) {
         case LIVRE:
-          Serial.print('o');
+          // Numero de passagens pela celula (9 = nove ou mais).
+          Serial.print(visits[r][c] > 9 ? 9 : visits[r][c]);
           break;
         case OBSTACULO:
           Serial.print('#');

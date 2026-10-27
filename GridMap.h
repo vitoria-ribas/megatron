@@ -26,6 +26,8 @@ class GridMap {
   void markVisited();
   void markObstacle(int direction);
   int unknownAhead(int direction) const;
+  int visitsHere() const;
+  int visitsAhead(int direction) const;
 
   int visitedCount() const;
   int obstacleCount() const;
@@ -38,8 +40,10 @@ class GridMap {
   int dir = 0;
 
   Cell cells[TAMANHO][TAMANHO];
+  uint8_t visits[TAMANHO][TAMANHO];
 
   static void dxdy(int direction, int& dx, int& dy);
   static bool inBounds(int gx, int gy);
   static char headingChar(int direction);
+  static char robotChar(int direction);
 };
