@@ -1,12 +1,12 @@
-# Robô: varredura e desvio de obstáculos
+# Robô explorador: varredura, desvio de obstáculos e mapeamento
 
-Abra `robo_re_varredura.ino` na Arduino IDE. Mantenha todos os arquivos `.h` e `.cpp` deste projeto na mesma pasta do sketch. Instale a biblioteca ESP32Servo (Kevin Harrington / John K. Bennett) e selecione uma placa ESP32 compatível. Esta versão é para ESP32 clássico/WROOM e servo SG90 de posição, não servo de rotação contínua.
+Abra `megatron.ino` na Arduino IDE. Mantenha todos os arquivos `.h` e `.cpp` deste projeto na mesma pasta do sketch. Instale a biblioteca ESP32Servo (Kevin Harrington / John K. Bennett) e selecione uma placa ESP32 compatível. Esta versão é para ESP32 clássico/WROOM e servo SG90 de posição, não servo de rotação contínua.
 
 ## Organização do código
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `robo_re_varredura.ino` | Inicialização do Serial e ciclo principal Arduino (`setup` e `loop`). |
+| `megatron.ino` | Inicialização do Serial e ciclo principal Arduino (`setup` e `loop`). |
 | `Config.h` | Pinos, ângulos, limites e tempos ajustáveis. |
 | `MotorController.h/.cpp` | Inicialização, parada e acionamento dos motores pelo TB6612FNG. |
 | `DistanceSensor.h/.cpp` | Disparo do HC-SR04, conversão da distância e filtro de três leituras. |

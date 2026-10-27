@@ -4,9 +4,20 @@ Esta análise compara o código modularizado com os requisitos do trabalho de Ro
 
 ## Resumo
 
-O código já é uma boa base de desvio de obstáculos: controla os motores, mede distâncias com o sensor ultrassônico, movimenta o servo para observar os lados e escolhe uma direção usando regras. Porém, o requisito central do Grupo 4 ainda não está completo: falta implementar a exploração com memória e mapeamento simplificado do ambiente.
+O código controla os motores, mede distâncias com o sensor ultrassônico, movimenta o servo para observar os lados e escolhe uma direção usando regras. Agora também mantém um mapa em grade do ambiente e registra o percurso, o que atende ao requisito central do Grupo 4: exploração com memória e mapeamento simplificado.
 
-No estado atual, o projeto se aproxima mais de um robô que desvia de obstáculos do que de um robô que explora e mapeia o ambiente.
+A pose é estimada por tempo (não há encoders), então o mapa é uma aproximação que precisa de calibração física.
+
+## O que já foi implementado
+
+1. **Mapa em grade (`GridMap.h/.cpp`):** grade 21×21 em que cada célula pode estar desconhecida, livre ou com obstáculo. O robô começa no centro.
+2. **Memória do percurso:** a célula inicial e as células percorridas são marcadas como livres; obstáculos à frente, à esquerda e à direita são marcados na grade.
+3. **Pose estimada por tempo:** a cada `TEMPO_POR_CELULA_MS` de avanço o robô avança uma célula; cada giro muda o sentido em 90°. Como não há encoders, a posição é aproximada.
+4. **Exploração com redução de repetição:** entre dois lados livres, a navegação escolhe a direção com mais células desconhecidas (`unknownAhead`), caindo para a comparação de espaço e para a preferência alternada em empate.
+5. **Visualização do mapa:** o mapa é impresso no Monitor Serial no início, a cada `IMPRIMIR_MAPA_A_CADA_N_CELULAS` células e em cada decisão (giro ou beco sem saída).
+6. **Correção do giro duplicado:** `reverse()` passou a informar quando já girou para sair do beco, evitando um segundo giro no cenário de frente e lados bloqueados.
+7. **Tratamento de sem eco configurável:** `SEM_ECO_LIVRE` controla se ausência de eco conta como caminho livre (padrão `true`).
+8. **Sketch renomeado:** `robo_re_varredura.ino` → `megatron.ino`, deixando o nome do arquivo igual ao da pasta, como exige a Arduino IDE.
 
 ## O que o código já atende
 
@@ -16,19 +27,19 @@ No estado atual, o projeto se aproxima mais de um robô que desvia de obstáculo
 - **Comportamento baseado em regras:** há regras para caminho bloqueado, obstáculo muito próximo, recuo e escolha entre os lados.
 - **Organização modular:** a inicialização, configuração, controle dos motores, leitura do sensor, controle do servo e navegação foram separados em arquivos próprios. A arquitetura está mais clara e cada módulo tem uma responsabilidade principal.
 
-Isso atende parte da integração, da navegação e do requisito de organização modular, mas ainda não caracteriza a exploração com mapeamento pedida para o Grupo 4.
+Isso atende a integração, a navegação, o requisito de organização modular e a exploração com mapeamento descrita na seção anterior.
 
 ## O que falta para atender ao Grupo 4
 
 | Prioridade | Requisito | Situação nos arquivos disponíveis |
 |---|---|---|
-| **Essencial** | Registrar regiões ou pontos percorridos | Não há memória de posições, células ou trechos já visitados. |
-| **Essencial** | Representar o ambiente ou o percurso | Não há mapa, matriz ou representação do trajeto gerada pelo código. |
-| **Essencial** | Reduzir repetição e retorno a áreas exploradas | Alternar a preferência entre esquerda e direita não identifica áreas visitadas nem evita repetir o mesmo caminho. |
-| **Essencial** | Exploração autônoma | O robô reage aos obstáculos, mas não mantém um histórico para orientar a exploração. |
-| **Importante** | Testes práticos e análise dos resultados | O guia descreve como testar, mas os arquivos disponíveis não apresentam resultados registrados, cenários executados ou análise de desempenho. |
+| **Essencial — atendido** | Registrar regiões ou pontos percorridos | Implementado no `GridMap`: células livres/obstáculo e pose estimada por tempo. |
+| **Essencial — atendido** | Representar o ambiente ou o percurso | Implementado: grade 21×21 impressa no Monitor Serial. |
+| **Essencial — atendido** | Reduzir repetição e retorno a áreas exploradas | Implementado: a navegação prefere a direção com mais células desconhecidas. |
+| **Essencial — atendido** | Exploração autônoma | Implementado: o histórico de células orienta a exploração; falta validar fisicamente. |
+| **Importante** | Testes práticos e análise dos resultados | O guia descreve como testar, mas ainda não há resultados registrados, cenários executados ou análise de desempenho. |
 | **Importante** | Protótipo funcional com estrutura modelada e impressa em 3D | Não há modelo CAD, fotos ou outra evidência disso nos arquivos disponíveis. O código, sozinho, não confirma esse requisito. |
-| **Atendido** | Organização modular do software | O sketch foi separado em módulos de configuração, motores, sensor, servo e navegação, e compilou para ESP32 Dev Module. A validação física continua pendente. |
+| **Atendido** | Organização modular do software | O sketch foi separado em módulos (configuração, motores, sensor, servo, navegação e mapa) e compilou para ESP32 Dev Module. A validação física continua pendente. |
 | **Entrega** | Relatório acadêmico e apresentação/demonstração | O guia técnico não substitui o relatório exigido pelo PDF, nem comprova a apresentação ou a demonstração final. |
 
 ## Requisitos gerais do trabalho escrito
@@ -49,22 +60,20 @@ Esses itens não estão documentados como relatório nos arquivos disponibilizad
 
 ## Divergências e pontos de atenção no código
 
-1. **Leitura sem eco:** a lógica interpreta ausência de eco como caminho livre e pode permitir que o robô avance. Isso deve ser revisto porque ausência de leitura não confirma que a passagem está segura.
+1. **Leitura sem eco:** a ausência de eco é tratada como caminho livre, agora controlada pela constante `SEM_ECO_LIVRE` (padrão `true`). Ainda deve ser revalidada, pois uma leitura desconhecida não confirma que a passagem está segura.
 2. **Filtro e distância-limite:** o código e o guia agora descrevem três amostras e um limite de 25 cm. Esse comportamento deve ser validado fisicamente e ajustado com base nos testes.
 3. **Limite de giros:** não há contador de giros consecutivos; o limite atual é de duas tentativas de ré seguidas.
-4. **Possível giro duplicado:** ao atingir o limite de rés no cenário em que a frente e os dois lados estão bloqueados, a função de ré já realiza um giro e a lógica do cenário solicita outro. Isso pode provocar dois giros consecutivos.
-5. **Estimativa do percurso:** os movimentos são controlados por tempo, sem encoders. Assim, o código não sabe com precisão quanto avançou nem se voltou a uma região anterior. Essa limitação precisa ser considerada ao planejar o mapeamento.
+4. **Giro duplicado corrigido:** `reverse()` agora informa quando já girou para sair do beco, e `analyzeObstacle()` evita solicitar um segundo giro.
+5. **Estimativa do percurso:** o mapeamento usa pose estimada por tempo (`TEMPO_POR_CELULA_MS` por célula), sem encoders. O mapa é aproximado e pode divergir do ambiente real; os tempos precisam de calibração.
 6. **Teste físico:** a compilação da versão modular foi validada para ESP32 Dev Module com Arduino-ESP32 3.3.11 e ESP32Servo 3.2.1. Ainda é necessário testar o protótipo real e calibrar os tempos.
 
 ## Próximos passos recomendados
 
-1. Implementar uma memória simples do percurso, por exemplo, uma grade de células ou uma lista de posições aproximadas.
-2. Gerar e exibir uma representação do mapa ou do trajeto, por exemplo, no Monitor Serial.
-3. Usar o registro das áreas visitadas para escolher direções menos exploradas e reduzir repetições.
-4. Rever o tratamento de ausência de eco e validar os parâmetros do filtro, distância-limite e movimento.
-5. Verificar o comportamento físico do protótipo e registrar testes com cenários, resultados, limitações e melhorias.
-6. Preparar o relatório acadêmico e a demonstração exigidos no PDF.
+1. Calibrar `TEMPO_POR_CELULA_MS`, `TEMPO_GIRO_MS` e `TEMPO_RE_MS` com a velocidade real do robô para o mapa corresponder ao deslocamento físico.
+2. Validar fisicamente o comportamento e registrar testes com cenários, resultados, limitações e melhorias.
+3. Reavaliar `SEM_ECO_LIVRE` e os parâmetros do filtro e da distância-limite durante os testes.
+4. Preparar o modelo 3D, o relatório acadêmico e a demonstração exigidos no PDF.
 
 ## Conclusão
 
-O projeto já tem uma base de sensores, motores e desvio de obstáculos. A principal lacuna é transformar essa reação local em exploração com registro e representação do ambiente. Sem isso, o requisito distintivo do Grupo 4 — mapeamento simplificado e redução da repetição de trajetórias — ainda não está atendido.
+O projeto agora integra sensores, motores, desvio de obstáculos e um mapa em grade que registra o percurso e orienta a exploração, atendendo ao requisito distintivo do Grupo 4 (mapeamento simplificado e redução da repetição de trajetórias). Restam a validação física do protótipo, a calibração dos tempos e as entregas escritas (relatório, modelo 3D e apresentação).
