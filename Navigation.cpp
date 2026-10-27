@@ -230,9 +230,13 @@ void Navigation::analyzeObstacle() {
 
   map.markObstacle(map.heading());
 
+  // Muito perto: recua e depois varre os lados para escolher a direcao.
+  bool reversed = false;
   if (front >= 0 && front <= Config::MUITO_PERTO_CM) {
-    reverse();
-    return;
+    if (reverse()) {
+      return;  // limite de res: ja girou para sair do beco
+    }
+    reversed = true;
   }
 
   Serial.println("Obstaculo confirmado. Analisando os lados...");
@@ -244,14 +248,16 @@ void Navigation::analyzeObstacle() {
   printDistance("F=", front);
   Serial.println();
 
-  if (isFree(front)) {
+  // Depois de uma re o obstaculo continua la: nao volta a seguir em frente.
+  if (!reversed && isFree(front)) {
     Serial.println("Caminho frontal liberou durante a analise.");
     return;
   }
 
-  if (front >= 0 && front <= Config::MUITO_PERTO_CM) {
-    reverse();
-    return;
+  if (!reversed && front >= 0 && front <= Config::MUITO_PERTO_CM) {
+    if (reverse()) {
+      return;
+    }
   }
 
   const bool leftFree = isFree(diagonalLeft) && isFree(left);

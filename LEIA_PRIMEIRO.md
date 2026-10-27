@@ -44,7 +44,7 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 - O robô avança enquanto a leitura frontal não confirma um obstáculo a até 25 cm. A medição frontal ocorre repetidamente durante o avanço; não há etapa de avanço temporizada de 250 ms.
 - Um setor é considerado livre se a leitura for maior que 25 cm **ou se não houver eco**. Essa escolha atual pode tratar uma leitura desconhecida como caminho livre.
 - Diante de obstáculo, o robô para, mede os setores laterais e escolhe uma direção quando a diagonal e o lado correspondente são considerados livres.
-- O robô recua se a frente estiver a até 10 cm. Se frente e os dois lados estiverem bloqueados, executa a regra de ré e giro.
+- Se a frente estiver a até 10 cm, o robô recua e, em seguida, varre os lados e escolhe a direção como nos demais casos (depois da ré ele não volta a seguir em frente). Se frente e os dois lados estiverem bloqueados, executa a regra de ré e giro.
 - A contagem de rés é limitada a duas seguidas e é zerada após pelo menos 500 ms de avanço. Não existe no código um contador de quatro giros nem bloqueio permanente até reset.
 - Os tempos atuais de ré e giro são 350 ms (`TEMPO_RE_MS` e `TEMPO_GIRO_MS`), valores iniciais que precisam de calibração física.
 - O robô mantém um mapa em grade (`GridMap`): cada célula pode estar desconhecida, livre ou com obstáculo. A célula inicial é marcada como livre.

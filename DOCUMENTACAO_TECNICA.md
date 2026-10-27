@@ -41,6 +41,7 @@ flowchart TD
     C --> D{Confirmado?}
     D -- não --> A
     D -- sim, a até 10 cm --> R[Dar ré]
+    R --> E
     D -- sim --> E[Olhar diagonais e lados]
     E --> F{Algum lado livre?}
     F -- um --> G[Girar para ele]
