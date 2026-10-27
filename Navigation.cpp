@@ -73,20 +73,20 @@ bool Navigation::reverse() {
 
   ++reverseAttempts;
   Serial.println("RE: afastando do obstaculo.");
-  delay(100);
+  delay(Config::PAUSA_ANTES_MANOBRA_MS);
 
   motors.move(-1, -1);
   delay(Config::TEMPO_RE_MS);
 
   stop();
-  delay(150);
+  delay(Config::PAUSA_APOS_MANOBRA_MS);
   return false;
 }
 
 void Navigation::turn(bool left) {
   stop();
   Serial.println(left ? "GIRANDO ESQUERDA" : "GIRANDO DIREITA");
-  delay(100);
+  delay(Config::PAUSA_ANTES_MANOBRA_MS);
 
   const int leftMotor = left ? -1 : 1;
   const int rightMotor = -leftMotor;
@@ -99,7 +99,7 @@ void Navigation::turn(bool left) {
 
   delay(Config::TEMPO_GIRO_MS);
   stop();
-  delay(150);
+  delay(Config::PAUSA_APOS_MANOBRA_MS);
 
   if (left) {
     map.turnLeft();
@@ -112,7 +112,7 @@ void Navigation::turn(bool left) {
 
 void Navigation::analyzeObstacle() {
   stop();
-  delay(100);
+  delay(Config::PAUSA_ANTES_MANOBRA_MS);
 
   float front = sensor.readFiltered();
   if (isFree(front)) {
@@ -191,7 +191,8 @@ void Navigation::analyzeObstacle() {
                 : measuredRight;
         const float difference = spaceLeft - spaceRight;
 
-        if (difference > -5 && difference < 5) {
+        if (difference > -Config::MARGEM_EMPATE_CM &&
+            difference < Config::MARGEM_EMPATE_CM) {
           chooseLeft = preferLeft;
         } else {
           chooseLeft = spaceLeft > spaceRight;
@@ -249,7 +250,7 @@ void Navigation::update() {
     }
   }
 
-  if (millis() - advanceStartedAt >= 500) {
+  if (millis() - advanceStartedAt >= Config::TEMPO_ZERAR_RES_MS) {
     reverseAttempts = 0;
   }
 }

@@ -36,6 +36,11 @@ constexpr unsigned long TEMPO_RE_MS = 350;
 constexpr unsigned long TEMPO_GIRO_MS = 350;
 
 constexpr int MAX_RES_SEGUIDAS = 2;
+constexpr unsigned long TEMPO_ZERAR_RES_MS = 500;  // avanco minimo para zerar a contagem de res
+
+constexpr unsigned long PAUSA_ANTES_MANOBRA_MS = 100;
+constexpr unsigned long PAUSA_APOS_MANOBRA_MS = 150;
+constexpr float MARGEM_EMPATE_CM = 5.0f;  // diferenca de espaco abaixo da qual os lados empatam
 
 constexpr bool SEM_ECO_LIVRE = true;
 constexpr unsigned long TEMPO_POR_CELULA_MS = 500;
