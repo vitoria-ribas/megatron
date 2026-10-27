@@ -13,6 +13,9 @@ bool ServoScanner::begin() {
 
 void ServoScanner::position(int angle) {
   const int command = Config::INVERTER_OLHAR ? 180 - angle : angle;
+  if (Config::DEPURAR) {
+    Serial.printf("[%lu] SERVO -> %d\n", millis(), angle);
+  }
   head.write(command);
   delay(Config::TEMPO_SERVO_MS);
 }

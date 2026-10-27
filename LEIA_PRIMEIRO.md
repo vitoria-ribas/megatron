@@ -69,6 +69,14 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 6. Para os testes de exploração e a coleta das métricas, siga o roteiro de `DOCUMENTACAO_TECNICA.md`.
 7. Teste no chão com a traseira livre e acesso ao desligamento. Não há sensor traseiro, sensor lateral contínuo ou detector de bordas/escadas; a leitura frontal não verifica o caminho durante a ré.
 
+## Diagnóstico do servo
+
+Se o sensor ficar parado de lado enquanto o robô anda:
+
+1. **Log:** com `DEPURAR = true` (padrão), cada comando sai no Monitor Serial com o horário, por exemplo `[12345] SERVO -> 90` e `[12650] MOTOR A=1 B=1`. Se o log mostrar `SERVO -> 90` antes de `MOTOR` e o sensor continuar de lado, o servo recebeu o comando e não obedeceu: é alimentação ou suporte solto, não lógica.
+2. **Teste no boot:** com as rodas no ar, ponha `TESTE_SERVO = true` e grave. O servo varre os cinco ângulos com os motores parados e depois com os motores girando, e o programa para. Se ele só falha com os motores girando, a fonte do servo não aguenta a queda de tensão: use 5 V separados (ou um regulador a partir da bateria), GND em comum e um capacitor de 470 a 1000 µF no servo. Depois volte `TESTE_SERVO = false`.
+3. **Paradas frequentes:** se o robô para a toda hora para olhar os lados, teste com `EVITAR_REPETICAO = false`. Se as paradas sumirem, aumente `LIMITE_REVISITAS` ou `CELULAS_ENTRE_VERIFICACOES`.
+
 ## Limitações e próximos passos
 
 - Sem eco é tratado como livre pela lógica atual (`SEM_ECO_LIVRE = true`). É necessário rever essa política para não assumir que uma leitura desconhecida confirma passagem segura.

@@ -51,6 +51,12 @@ constexpr unsigned long TEMPO_POR_CELULA_MS = 500;
 constexpr int IMPRIMIR_MAPA_A_CADA_N_CELULAS = 4;
 constexpr unsigned long INTERVALO_LOG_MS = 500;
 
+// Depuracao: imprime no Serial cada comando de servo e de motor com o horario (ms).
+constexpr bool DEPURAR = true;
+// Teste do servo ao ligar: varre os angulos com os motores parados e depois com os
+// motores girando, e para. Use com as rodas no ar e desligue para a exploracao normal.
+constexpr bool TESTE_SERVO = false;
+
 // Anti-repeticao: ao entrar numa celula ja visitada, procura um lado menos explorado.
 constexpr bool EVITAR_REPETICAO = true;  // false volta ao comportamento anterior
 constexpr int LIMITE_REVISITAS = 2;  // passagens pela celula que disparam a verificacao

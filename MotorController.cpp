@@ -16,12 +16,18 @@ void MotorController::begin() {
 }
 
 void MotorController::stop() {
+  if (Config::DEPURAR) {
+    Serial.printf("[%lu] MOTOR PARADO\n", millis());
+  }
   digitalWrite(Config::STBY, LOW);
   digitalWrite(Config::PWMA, LOW);
   digitalWrite(Config::PWMB, LOW);
 }
 
 void MotorController::move(int motorA, int motorB) {
+  if (Config::DEPURAR) {
+    Serial.printf("[%lu] MOTOR A=%d B=%d\n", millis(), motorA, motorB);
+  }
   digitalWrite(Config::STBY, LOW);
 
   if (Config::INVERTER_A) {
