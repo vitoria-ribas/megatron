@@ -28,6 +28,7 @@ class Navigation {
   unsigned long lastCellStepAt = 0;
   int cellsSincePrint = 0;
   unsigned long lastLogAt = 0;
+  int cellsSinceRepetitionCheck = 0;
   bool preferLeft = true;
 
   bool isFree(float distanceCm) const;
@@ -35,6 +36,10 @@ class Navigation {
   void stop();
   bool reverse();
   void turn(bool left);
+  void scanSides(
+      float& diagonalLeft, float& left, float& diagonalRight, float& right);
+  int compareExploration(int a, int b) const;
+  void avoidRepetition();
   void analyzeObstacle();
   void printDistance(const char* label, float distanceCm);
 };

@@ -110,6 +110,69 @@ void Navigation::turn(bool left) {
   preferLeft = !left;
 }
 
+void Navigation::scanSides(
+    float& diagonalLeft, float& left, float& diagonalRight, float& right) {
+  diagonalLeft = scanner.look(Config::DIAGONAL_E, sensor);
+  left = scanner.look(Config::ESQUERDA, sensor);
+  diagonalRight = scanner.look(Config::DIAGONAL_D, sensor);
+  right = scanner.look(Config::DIREITA, sensor);
+  scanner.position(Config::FRENTE);
+
+  printDistance("DE=", diagonalLeft);
+  printDistance("E=", left);
+  printDistance("DD=", diagonalRight);
+  printDistance("D=", right);
+  Serial.println();
+
+  if (isBlocked(left)) {
+    map.markObstacle(map.headingLeft());
+  }
+  if (isBlocked(right)) {
+    map.markObstacle(map.headingRight());
+  }
+}
+
+// > 0 se a direcao a leva a uma area menos explorada que b; 0 em empate.
+int Navigation::compareExploration(int a, int b) const {
+  const int unknownDifference = map.unknownAhead(a) - map.unknownAhead(b);
+  if (unknownDifference != 0 || !Config::EVITAR_REPETICAO) {
+    return unknownDifference;
+  }
+  return map.visitsAhead(b) - map.visitsAhead(a);
+}
+
+void Navigation::avoidRepetition() {
+  stop();
+  Serial.println("Area ja visitada. Procurando caminho menos explorado...");
+  delay(Config::PAUSA_ANTES_MANOBRA_MS);
+
+  float diagonalLeft, left, diagonalRight, right;
+  scanSides(diagonalLeft, left, diagonalRight, right);
+
+  const int ahead = map.heading();
+  const bool leftBetter = isFree(diagonalLeft) && isFree(left) &&
+                          compareExploration(map.headingLeft(), ahead) > 0;
+  const bool rightBetter = isFree(diagonalRight) && isFree(right) &&
+                           compareExploration(map.headingRight(), ahead) > 0;
+
+  if (!leftBetter && !rightBetter) {
+    Serial.println("Nenhum lado menos explorado. Seguindo em frente.");
+    return;
+  }
+
+  bool chooseLeft = leftBetter;
+  if (leftBetter && rightBetter) {
+    const int comparison =
+        compareExploration(map.headingLeft(), map.headingRight());
+    chooseLeft = comparison != 0 ? comparison > 0 : preferLeft;
+  }
+
+  Serial.print("Desviando para area menos explorada: ");
+  Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
+  turn(chooseLeft);
+  map.printMap();
+}
+
 void Navigation::analyzeObstacle() {
   stop();
   delay(Config::PAUSA_ANTES_MANOBRA_MS);
@@ -129,27 +192,12 @@ void Navigation::analyzeObstacle() {
 
   Serial.println("Obstaculo confirmado. Analisando os lados...");
 
-  const float diagonalLeft = scanner.look(Config::DIAGONAL_E, sensor);
-  const float left = scanner.look(Config::ESQUERDA, sensor);
-  const float diagonalRight = scanner.look(Config::DIAGONAL_D, sensor);
-  const float right = scanner.look(Config::DIREITA, sensor);
+  float diagonalLeft, left, diagonalRight, right;
+  scanSides(diagonalLeft, left, diagonalRight, right);
 
-  scanner.position(Config::FRENTE);
   front = sensor.readFiltered();
-
   printDistance("F=", front);
-  printDistance("DE=", diagonalLeft);
-  printDistance("E=", left);
-  printDistance("DD=", diagonalRight);
-  printDistance("D=", right);
   Serial.println();
-
-  if (isBlocked(left)) {
-    map.markObstacle(map.headingLeft());
-  }
-  if (isBlocked(right)) {
-    map.markObstacle(map.headingRight());
-  }
 
   if (isFree(front)) {
     Serial.println("Caminho frontal liberou durante a analise.");
@@ -168,11 +216,11 @@ void Navigation::analyzeObstacle() {
     bool chooseLeft = leftFree;
 
     if (leftFree && rightFree) {
-      const int scoreLeft = map.unknownAhead(map.headingLeft());
-      const int scoreRight = map.unknownAhead(map.headingRight());
+      const int comparison =
+          compareExploration(map.headingLeft(), map.headingRight());
 
-      if (scoreLeft != scoreRight) {
-        chooseLeft = scoreLeft > scoreRight;
+      if (comparison != 0) {
+        chooseLeft = comparison > 0;
       } else {
         const float measuredDiagonalLeft =
             diagonalLeft < 0 ? 999.0f : diagonalLeft;
@@ -243,10 +291,19 @@ void Navigation::update() {
     lastCellStepAt = millis();
     map.stepForward();
     ++cellsSincePrint;
+    ++cellsSinceRepetitionCheck;
 
     if (cellsSincePrint >= Config::IMPRIMIR_MAPA_A_CADA_N_CELULAS) {
       cellsSincePrint = 0;
       map.printMap();
+    }
+
+    if (Config::EVITAR_REPETICAO &&
+        map.visitsHere() >= Config::LIMITE_REVISITAS &&
+        cellsSinceRepetitionCheck >= Config::CELULAS_ENTRE_VERIFICACOES) {
+      cellsSinceRepetitionCheck = 0;
+      avoidRepetition();
+      return;
     }
   }
 

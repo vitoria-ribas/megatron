@@ -47,4 +47,9 @@ constexpr unsigned long TEMPO_POR_CELULA_MS = 500;
 constexpr int IMPRIMIR_MAPA_A_CADA_N_CELULAS = 4;
 constexpr unsigned long INTERVALO_LOG_MS = 500;
 
+// Anti-repeticao: ao entrar numa celula ja visitada, procura um lado menos explorado.
+constexpr bool EVITAR_REPETICAO = true;  // false volta ao comportamento anterior
+constexpr int LIMITE_REVISITAS = 2;  // passagens pela celula que disparam a verificacao
+constexpr int CELULAS_ENTRE_VERIFICACOES = 3;  // evita parar a cada celula
+
 }  // namespace Config
