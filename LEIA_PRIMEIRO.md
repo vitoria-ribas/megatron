@@ -31,6 +31,8 @@ Os módulos se comunicam por interfaces de classe: a navegação usa os módulos
 | ECHO, através do divisor | 21 |
 | Sinal do servo | 2 |
 
+**GPIO12 (AIN2) e GPIO2 (servo) são pinos de boot do ESP32.** Se o GPIO12 estiver em nível alto ao ligar, a placa pode não iniciar; o GPIO2 também é lido no boot e costuma ter o LED da placa. Com a ligação atual isso não deve acontecer, mas, se o ESP32 às vezes não iniciar ou não aceitar upload com tudo conectado, desconecte esses dois fios, ligue a placa e reconecte. Se o problema se repetir, mova esses sinais para GPIOs livres e atualize `Config.h`.
+
 Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compatível com os motores; HC-SR04 e servo em fonte de 5 V adequada aos modelos. Todos os GNDs devem estar interligados. Não alimente simultaneamente a placa pelo USB e pelo pino 5V/VIN. Evite conduzir a corrente dos motores pela protoboard.
 
 **Nunca ligue ECHO diretamente ao ESP32.** Divisor recomendado: ECHO -> 2,2 kohms -> ponto de sinal; ponto de sinal -> GPIO21; ponto de sinal -> 3,3 kohms -> GND. Se forem usados três resistores de 1 kohm: um entre ECHO e sinal e dois em série entre sinal e GND (saída nominal de 3,33 V para entrada de 5 V).
@@ -46,10 +48,11 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 - A contagem de rés é limitada a duas seguidas e é zerada após pelo menos 500 ms de avanço. Não existe no código um contador de quatro giros nem bloqueio permanente até reset.
 - Os tempos atuais de ré e giro são 350 ms (`TEMPO_RE_MS` e `TEMPO_GIRO_MS`), valores iniciais que precisam de calibração física.
 - O robô mantém um mapa em grade (`GridMap`): cada célula pode estar desconhecida, livre ou com obstáculo. A célula inicial é marcada como livre.
-- A pose é estimada por tempo: a cada `TEMPO_POR_CELULA_MS` de avanço, o robô avança uma célula no mapa; cada giro altera o sentido em 90°. Não há encoders, então a posição é aproximada.
+- A pose é estimada por tempo: a cada `TEMPO_POR_CELULA_MS` de avanço, o robô avança uma célula no mapa; ao parar, a célula em andamento é contada se ele já percorreu pelo menos metade dela. Cada giro altera o sentido em 90°. Não há encoders, então a posição é aproximada.
+- Uma célula por onde o robô passa é sempre marcada como livre, mesmo que antes tenha sido marcada como obstáculo, para corrigir parte da deriva da pose.
 - Obstáculos detectados à frente, à esquerda ou à direita são marcados nas células correspondentes do mapa. As leituras diagonais orientam a navegação, mas não são gravadas na grade.
 - Ao escolher entre dois lados livres, o robô prefere a direção com mais células desconhecidas à frente; em empate, compara o espaço disponível e, por fim, alterna a preferência (`preferLeft`).
-- O mapa é impresso no Monitor Serial no início, a cada `IMPRIMIR_MAPA_A_CADA_N_CELULAS` células percorridas e sempre que o robô toma uma decisão (giro ou beco sem saída).
+- O mapa é impresso no Monitor Serial no início, a cada `IMPRIMIR_MAPA_A_CADA_N_CELULAS` células percorridas e sempre que o robô toma uma decisão (giro ou beco sem saída). A distância frontal durante o avanço é impressa a cada `INTERVALO_LOG_MS` (500 ms) ou sempre que há obstáculo.
 - `SEM_ECO_LIVRE` controla se ausência de eco conta como caminho livre. O valor padrão é `true`; leia as limitações abaixo antes de mantê-lo.
 
 ## Como testar
