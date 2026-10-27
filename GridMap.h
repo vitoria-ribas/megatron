@@ -30,6 +30,7 @@ class GridMap {
   int visitsAhead(int direction) const;
 
   int visitedCount() const;
+  int revisitCount() const;
   int obstacleCount() const;
   int unknownCount() const;
   void printMap() const;

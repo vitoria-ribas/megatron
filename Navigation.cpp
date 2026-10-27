@@ -24,8 +24,31 @@ bool Navigation::begin() {
   scanner.position(Config::FRENTE);
 
   map.begin();
-  map.printMap();
+  // Cabecalho das linhas STATS: copie-as do Monitor Serial para uma planilha.
+  Serial.println(
+      "STATS,tempo_ms,visitadas,revisitas,obstaculos,giros,res,"
+      "desvios_repeticao");
+  printStatus();
   return true;
+}
+
+void Navigation::printStatus() {
+  map.printMap();
+
+  Serial.print("STATS,");
+  Serial.print(millis());
+  Serial.print(',');
+  Serial.print(map.visitedCount());
+  Serial.print(',');
+  Serial.print(map.revisitCount());
+  Serial.print(',');
+  Serial.print(map.obstacleCount());
+  Serial.print(',');
+  Serial.print(turnCount);
+  Serial.print(',');
+  Serial.print(reverseCount);
+  Serial.print(',');
+  Serial.println(repetitionTurnCount);
 }
 
 bool Navigation::isFree(float distanceCm) const {
@@ -72,6 +95,7 @@ bool Navigation::reverse() {
   }
 
   ++reverseAttempts;
+  ++reverseCount;
   Serial.println("RE: afastando do obstaculo.");
   delay(Config::PAUSA_ANTES_MANOBRA_MS);
 
@@ -86,6 +110,7 @@ bool Navigation::reverse() {
 void Navigation::turn(bool left) {
   stop();
   Serial.println(left ? "GIRANDO ESQUERDA" : "GIRANDO DIREITA");
+  ++turnCount;
   delay(Config::PAUSA_ANTES_MANOBRA_MS);
 
   const int leftMotor = left ? -1 : 1;
@@ -167,10 +192,11 @@ void Navigation::avoidRepetition() {
     chooseLeft = comparison != 0 ? comparison > 0 : preferLeft;
   }
 
+  ++repetitionTurnCount;
   Serial.print("Desviando para area menos explorada: ");
   Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
   turn(chooseLeft);
-  map.printMap();
+  printStatus();
 }
 
 void Navigation::analyzeObstacle() {
@@ -251,14 +277,14 @@ void Navigation::analyzeObstacle() {
     Serial.print("Escolhendo ");
     Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
     turn(chooseLeft);
-    map.printMap();
+    printStatus();
   } else {
     Serial.println("Frente e ambos os lados bloqueados: recuando e girando!");
     const bool alreadyTurned = reverse();
     if (!alreadyTurned) {
       turn(preferLeft);
     }
-    map.printMap();
+    printStatus();
   }
 }
 
@@ -295,7 +321,7 @@ void Navigation::update() {
 
     if (cellsSincePrint >= Config::IMPRIMIR_MAPA_A_CADA_N_CELULAS) {
       cellsSincePrint = 0;
-      map.printMap();
+      printStatus();
     }
 
     if (Config::EVITAR_REPETICAO &&

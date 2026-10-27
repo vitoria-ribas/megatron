@@ -29,6 +29,11 @@ class Navigation {
   int cellsSincePrint = 0;
   unsigned long lastLogAt = 0;
   int cellsSinceRepetitionCheck = 0;
+
+  // Metricas da exploracao, impressas nas linhas STATS.
+  int turnCount = 0;
+  int reverseCount = 0;
+  int repetitionTurnCount = 0;
   bool preferLeft = true;
 
   bool isFree(float distanceCm) const;
@@ -42,4 +47,5 @@ class Navigation {
   void avoidRepetition();
   void analyzeObstacle();
   void printDistance(const char* label, float distanceCm);
+  void printStatus();
 };

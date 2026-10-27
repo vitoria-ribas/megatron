@@ -187,6 +187,19 @@ int GridMap::visitedCount() const {
   return count;
 }
 
+// Passagens alem da primeira em cada celula: mede o quanto o robo repetiu caminho.
+int GridMap::revisitCount() const {
+  int count = 0;
+  for (int r = 0; r < TAMANHO; ++r) {
+    for (int c = 0; c < TAMANHO; ++c) {
+      if (visits[r][c] > 1) {
+        count += visits[r][c] - 1;
+      }
+    }
+  }
+  return count;
+}
+
 int GridMap::obstacleCount() const {
   int count = 0;
   for (int r = 0; r < TAMANHO; ++r) {
