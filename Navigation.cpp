@@ -41,6 +41,12 @@ bool Navigation::isBlocked(float distanceCm) const {
 
 void Navigation::stop() {
   motors.stop();
+
+  // Conta a celula em andamento se o robo ja percorreu pelo menos metade dela.
+  if (advancing &&
+      millis() - lastCellStepAt >= Config::TEMPO_POR_CELULA_MS / 2) {
+    map.stepForward();
+  }
   advancing = false;
 }
 
