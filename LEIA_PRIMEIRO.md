@@ -51,7 +51,10 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 - A pose é estimada por tempo: a cada `TEMPO_POR_CELULA_MS` de avanço, o robô avança uma célula no mapa; ao parar, a célula em andamento é contada se ele já percorreu pelo menos metade dela. Cada giro altera o sentido em 90°. Não há encoders, então a posição é aproximada.
 - Uma célula por onde o robô passa é sempre marcada como livre, mesmo que antes tenha sido marcada como obstáculo, para corrigir parte da deriva da pose.
 - Obstáculos detectados à frente, à esquerda ou à direita são marcados nas células correspondentes do mapa. As leituras diagonais orientam a navegação, mas não são gravadas na grade.
-- Ao escolher entre dois lados livres, o robô prefere a direção com mais células desconhecidas à frente; em empate, compara o espaço disponível e, por fim, alterna a preferência (`preferLeft`).
+- Cada célula livre guarda quantas vezes o robô passou por ela. No mapa impresso, `1` a `9` são as passagens (9 = nove ou mais), `#` é obstáculo, `.` é desconhecida e `^ > v <` é o robô e o sentido em que está.
+- Ao escolher entre dois lados livres, o robô prefere a direção com mais células desconhecidas à frente; em empate, a com menos passagens; depois compara o espaço disponível e, por fim, alterna a preferência (`preferLeft`).
+- **Anti-repetição** (`EVITAR_REPETICAO`): ao entrar numa célula já visitada `LIMITE_REVISITAS` vezes (padrão 2), o robô para, olha os lados e vira para um lado livre que leve a uma área menos explorada que a da frente. Se nenhum lado for melhor, segue em frente. A verificação acontece no máximo a cada `CELULAS_ENTRE_VERIFICACOES` células. Com `EVITAR_REPETICAO = false`, o robô volta ao comportamento anterior.
+- A cada impressão do mapa sai uma linha `STATS` em CSV (tempo, células visitadas, revisitas, obstáculos, giros, rés e desvios por repetição). Veja `DOCUMENTACAO_TECNICA.md` para usá-las na análise.
 - O mapa é impresso no Monitor Serial no início, a cada `IMPRIMIR_MAPA_A_CADA_N_CELULAS` células percorridas e sempre que o robô toma uma decisão (giro ou beco sem saída). A distância frontal durante o avanço é impressa a cada `INTERVALO_LOG_MS` (500 ms) ou sempre que há obstáculo.
 - `SEM_ECO_LIVRE` controla se ausência de eco conta como caminho livre. O valor padrão é `true`; leia as limitações abaixo antes de mantê-lo.
 
@@ -62,7 +65,8 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 3. Mantenha `INVERTER_A` e `INVERTER_B` com os valores que fizeram as rodas avançarem.
 4. Use caixas grandes para confirmar as leituras dos setores no Monitor Serial (115200 baud).
 5. Teste frente bloqueada com um lado livre, frente e lados bloqueados e obstáculo muito próximo.
-6. Teste no chão com a traseira livre e acesso ao desligamento. Não há sensor traseiro, sensor lateral contínuo ou detector de bordas/escadas; a leitura frontal não verifica o caminho durante a ré.
+6. Para os testes de exploração e a coleta das métricas, siga o roteiro de `DOCUMENTACAO_TECNICA.md`.
+7. Teste no chão com a traseira livre e acesso ao desligamento. Não há sensor traseiro, sensor lateral contínuo ou detector de bordas/escadas; a leitura frontal não verifica o caminho durante a ré.
 
 ## Limitações e próximos passos
 
