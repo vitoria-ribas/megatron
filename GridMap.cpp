@@ -76,8 +76,10 @@ char GridMap::headingChar(int direction) {
   }
 }
 
+// O robo esteve aqui, entao a celula e livre mesmo que antes tenha sido marcada
+// como obstaculo (a pose estimada por tempo deriva).
 void GridMap::markVisited() {
-  if (inBounds(posX, posY) && cells[posY][posX] == DESCONHECIDO) {
+  if (inBounds(posX, posY)) {
     cells[posY][posX] = LIVRE;
   }
 }
