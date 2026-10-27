@@ -11,9 +11,10 @@ Abra `robo_re_varredura.ino` na Arduino IDE. Mantenha todos os arquivos `.h` e `
 | `MotorController.h/.cpp` | Inicialização, parada e acionamento dos motores pelo TB6612FNG. |
 | `DistanceSensor.h/.cpp` | Disparo do HC-SR04, conversão da distância e filtro de três leituras. |
 | `ServoScanner.h/.cpp` | Inicialização do servo, posicionamento e leitura dos setores observados. |
-| `Navigation.h/.cpp` | Regras atuais de avanço, análise de obstáculos, ré e giro. |
+| `Navigation.h/.cpp` | Regras de avanço, análise de obstáculos, ré, giro e exploração. |
+| `GridMap.h/.cpp` | Grade de células, pose estimada e impressão do mapa no Serial. |
 
-Os módulos se comunicam por interfaces de classe: a navegação usa os módulos de motores, sensor e servo. A separação organiza o código, mas ainda não implementa memória de áreas visitadas nem mapeamento do ambiente.
+Os módulos se comunicam por interfaces de classe: a navegação usa os módulos de motores, sensor e servo, e registra o percurso no `GridMap`. A separação organiza o código e implementa memória de áreas visitadas com mapeamento simplificado do ambiente.
 
 ## Pinagem
 
@@ -44,6 +45,12 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 - O robô recua se a frente estiver a até 10 cm. Se frente e os dois lados estiverem bloqueados, executa a regra de ré e giro.
 - A contagem de rés é limitada a duas seguidas e é zerada após pelo menos 500 ms de avanço. Não existe no código um contador de quatro giros nem bloqueio permanente até reset.
 - Os tempos atuais de ré e giro são 350 ms (`TEMPO_RE_MS` e `TEMPO_GIRO_MS`), valores iniciais que precisam de calibração física.
+- O robô mantém um mapa em grade (`GridMap`): cada célula pode estar desconhecida, livre ou com obstáculo. A célula inicial é marcada como livre.
+- A pose é estimada por tempo: a cada `TEMPO_POR_CELULA_MS` de avanço, o robô avança uma célula no mapa; cada giro altera o sentido em 90°. Não há encoders, então a posição é aproximada.
+- Obstáculos detectados à frente, à esquerda ou à direita são marcados nas células correspondentes do mapa. As leituras diagonais orientam a navegação, mas não são gravadas na grade.
+- Ao escolher entre dois lados livres, o robô prefere a direção com mais células desconhecidas à frente; em empate, compara o espaço disponível e, por fim, alterna a preferência (`preferLeft`).
+- O mapa é impresso no Monitor Serial no início, a cada `IMPRIMIR_MAPA_A_CADA_N_CELULAS` células percorridas e sempre que o robô toma uma decisão (giro ou beco sem saída).
+- `SEM_ECO_LIVRE` controla se ausência de eco conta como caminho livre. O valor padrão é `true`; leia as limitações abaixo antes de mantê-lo.
 
 ## Como testar
 
@@ -56,10 +63,11 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 
 ## Limitações e próximos passos
 
-- Sem eco é tratado como livre pela lógica atual. É necessário rever essa política para não assumir que uma leitura desconhecida confirma passagem segura.
-- Há um caso possível de giro duplicado: quando o limite de rés é atingido no cenário de frente e ambos os lados bloqueados, `reverse()` gira para sair do beco e a lógica do cenário também solicita outro giro.
-- Os movimentos são temporizados e não usam encoders. O programa não mede deslocamento real, derrapagem nem posição.
+- Sem eco é tratado como livre pela lógica atual (`SEM_ECO_LIVRE = true`). É necessário rever essa política para não assumir que uma leitura desconhecida confirma passagem segura.
+- O giro duplicado do beco sem saída foi corrigido: `reverse()` agora informa quando já girou para sair do beco, e `analyzeObstacle()` evita solicitar um segundo giro.
+- Os movimentos são temporizados e não usam encoders. O programa não mede deslocamento real, derrapagem nem posição; o mapa em grade é uma estimativa que pode divergir do ambiente real.
+- A ré não atualiza a pose no mapa, pois é curta e serve para reposicionar o robô dentro da mesma célula.
 - O HC-SR04 tem feixe com largura angular; leituras em cinco posições não reconstroem o contorno nem garantem a largura de uma passagem. Objetos pequenos ou inclinados podem não ser detectados.
 - As medidas de 10 cm por 4 cm foram informadas, mas não está confirmado se são dimensões do robô ou do objeto. O código não as usa para validar passagens. Meça o robô completo, incluindo rodas, suporte e eixo de giro, antes de ajustar as margens.
-- Este código ainda não implementa Wi-Fi, registro de regiões visitadas ou mapa. Esses recursos são necessários para atender integralmente ao tema do Grupo 4.
+- O mapeamento por tempo depende de `TEMPO_POR_CELULA_MS` (padrão 500 ms); calibre esse valor com a velocidade real do robô para que uma célula corresponda ao deslocamento físico desejado.
 - O sketch foi compilado para `ESP32 Dev Module` com Arduino-ESP32 3.3.11 e ESP32Servo 3.2.1. A compilação apresentou avisos dentro da biblioteca ESP32Servo, mas terminou com sucesso. A validação física do protótipo continua necessária.
