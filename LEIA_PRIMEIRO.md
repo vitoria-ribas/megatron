@@ -44,7 +44,7 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 - O robô avança enquanto a leitura frontal não confirma um obstáculo a até 25 cm. A medição frontal ocorre repetidamente durante o avanço; não há etapa de avanço temporizada de 250 ms.
 - Um setor é considerado livre se a leitura for maior que 25 cm **ou se não houver eco**. Essa escolha atual pode tratar uma leitura desconhecida como caminho livre.
 - Diante de obstáculo, o robô para, mede os setores laterais e escolhe uma direção quando a diagonal e o lado correspondente são considerados livres.
-- Se a frente estiver a até 10 cm, o robô recua. Com `VARRER_APOS_RE = true`, em seguida varre os lados e escolhe a direção como nos demais casos (depois da ré ele não volta a seguir em frente). Se frente e os dois lados estiverem bloqueados, executa a regra de ré e giro.
+- Se a frente estiver a até 10 cm, o robô recua. Com `VARRER_APOS_RE = true` (padrão), em seguida varre os lados e escolhe a direção como nos demais casos (depois da ré ele não volta a seguir em frente). Se frente e os dois lados estiverem bloqueados, executa a regra de ré e giro.
 - A contagem de rés é limitada a duas seguidas e é zerada após pelo menos 500 ms de avanço. Não existe no código um contador de quatro giros nem bloqueio permanente até reset.
 - Os tempos atuais de ré e giro são 350 ms (`TEMPO_RE_MS` e `TEMPO_GIRO_MS`), valores iniciais que precisam de calibração física.
 - O robô mantém um mapa em grade (`GridMap`): cada célula pode estar desconhecida, livre ou com obstáculo. A célula inicial é marcada como livre.
@@ -53,11 +53,10 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 - Obstáculos detectados à frente, à esquerda ou à direita são marcados nas células correspondentes do mapa. As leituras diagonais orientam a navegação, mas não são gravadas na grade.
 - Cada célula livre guarda quantas vezes o robô passou por ela. No mapa impresso, `1` a `9` são as passagens (9 = nove ou mais), `#` é obstáculo, `.` é desconhecida e `^ > v <` é o robô e o sentido em que está.
 - Ao escolher entre dois lados livres, o robô prefere a direção com mais células desconhecidas à frente; em empate, a com menos passagens; depois compara o espaço disponível e, por fim, alterna a preferência (`preferLeft`).
-- **Anti-repetição** (`EVITAR_REPETICAO`, desligada por padrão): ao entrar numa célula já visitada `LIMITE_REVISITAS` vezes (padrão 2), o robô para, olha os lados e vira para um lado livre que leve a uma área menos explorada que a da frente. Se nenhum lado for melhor, segue em frente. A verificação acontece no máximo a cada `CELULAS_ENTRE_VERIFICACOES` células. Com `EVITAR_REPETICAO = false`, o robô volta ao comportamento anterior.
-- A cada impressão do mapa sai uma linha `STATS` em CSV (tempo, células visitadas, revisitas, obstáculos, giros, rés e desvios por repetição). Veja `DOCUMENTACAO_TECNICA.md` para usá-las na análise.
+- A cada impressão do mapa sai uma linha `STATS` em CSV (tempo, células visitadas, revisitas, obstáculos, giros e rés). Veja `DOCUMENTACAO_TECNICA.md` para usá-las na análise.
 - O mapa é impresso no Monitor Serial no início, a cada `IMPRIMIR_MAPA_A_CADA_N_CELULAS` células percorridas e sempre que o robô toma uma decisão (giro ou beco sem saída). A distância frontal durante o avanço é impressa a cada `INTERVALO_LOG_MS` (500 ms) ou sempre que há obstáculo.
 - `SEM_ECO_LIVRE` controla se ausência de eco conta como caminho livre. O valor padrão é `true`; leia as limitações abaixo antes de mantê-lo.
-- **Exceção para objeto colado** (`REGRA_ECO_PERDIDO`, desligada por padrão): o HC-SR04 perde o eco quando o objeto fica muito perto ou inclinado. Se a frente ficar sem eco até `ECO_PERDIDO_JANELA_MS` (500 ms) depois de uma leitura válida de até `ECO_PERDIDO_PERTO_CM` (50 cm), a leitura conta como muito perto e o robô para e recua. O Monitor Serial mostra `SEM ECO logo apos obstaculo perto`.
+- **Exceção para objeto colado** (`REGRA_ECO_PERDIDO`, ligada por padrão): o HC-SR04 perde o eco quando o objeto fica muito perto ou inclinado. Se a frente ficar sem eco até `ECO_PERDIDO_JANELA_MS` (500 ms) depois de uma leitura válida de até `ECO_PERDIDO_PERTO_CM` (50 cm), a leitura conta como muito perto e o robô para e recua. O Monitor Serial mostra `SEM ECO logo apos obstaculo perto`.
 
 ## Como testar
 
@@ -71,15 +70,14 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 
 ## Chaves de comportamento
 
-Três mudanças de comportamento em relação à `main` ficam atrás de chaves no `Config.h`, **todas desligadas por padrão**. Desligadas, o robô se move como na `main`; o mapa com visitas, as linhas `STATS` e o log de depuração continuam ativos.
+Duas mudanças de comportamento em relação à `main` ficam atrás de chaves no `Config.h`, **ligadas por padrão** depois do teste no protótipo. Com as duas em `false`, o robô se move como na `main`; o mapa com visitas, as linhas `STATS` e o log de depuração continuam ativos.
 
 | Chave | O que liga |
 |---|---|
 | `VARRER_APOS_RE` | depois da ré, varre os lados e escolhe a direção em vez de só recuar |
 | `REGRA_ECO_PERDIDO` | sem eco logo depois de ver algo perto conta como muito perto |
-| `EVITAR_REPETICAO` | para e procura um lado menos explorado ao entrar em área já visitada |
 
-Para testar, ligue **uma chave por vez**, grave e repita o mesmo percurso. Se o problema aparecer, a última chave ligada é a causa.
+Se aparecer um comportamento estranho, desligue **uma chave por vez**, grave e repita o mesmo percurso. Uma terceira chave, que fazia o robô parar para varrer ao entrar em área já visitada, foi testada e removida porque fazia o robô girar demais e travar em espaço apertado.
 
 ## Diagnóstico do servo
 
@@ -87,7 +85,7 @@ Se o sensor ficar parado de lado enquanto o robô anda:
 
 1. **Log:** com `DEPURAR = true` (padrão), cada comando sai no Monitor Serial com o horário, por exemplo `[12345] SERVO -> 90` e `[12650] MOTOR A=1 B=1`. Se o log mostrar `SERVO -> 90` antes de `MOTOR` e o sensor continuar de lado, o servo recebeu o comando e não obedeceu: é alimentação ou suporte solto, não lógica.
 2. **Teste no boot:** com as rodas no ar, ponha `TESTE_SERVO = true` e grave. O servo varre os cinco ângulos com os motores parados e depois com os motores girando, e o programa para. Se ele só falha com os motores girando, a fonte do servo não aguenta a queda de tensão: use 5 V separados (ou um regulador a partir da bateria), GND em comum e um capacitor de 470 a 1000 µF no servo. Depois volte `TESTE_SERVO = false`.
-3. **Paradas frequentes:** se o robô para a toda hora para olhar os lados, teste com `EVITAR_REPETICAO = false`. Se as paradas sumirem, aumente `LIMITE_REVISITAS` ou `CELULAS_ENTRE_VERIFICACOES`.
+3. **Servo mal encaixado:** no teste do protótipo, o servo parado e as varreduras com o mesmo valor em todas as direções vinham do conector do servo meio solto. Confira o conector antes de suspeitar do código.
 
 ## Limitações e próximos passos
 

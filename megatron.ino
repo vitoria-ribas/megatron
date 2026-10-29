@@ -15,7 +15,8 @@ void varrerServo() {
   const int angulos[] = {Config::FRENTE, Config::DIAGONAL_E, Config::ESQUERDA,
                          Config::DIAGONAL_D, Config::DIREITA, Config::FRENTE};
   for (const int angulo : angulos) {
-    scanner.position(angulo);
+    const float distancia = scanner.look(angulo, sensor);
+    Serial.printf("  angulo %d: %.1f cm\n", angulo, distancia);
     delay(500);
   }
 }

@@ -26,7 +26,6 @@ class GridMap {
   void markVisited();
   void markObstacle(int direction);
   int unknownAhead(int direction) const;
-  int visitsHere() const;
   int visitsAhead(int direction) const;
 
   int visitedCount() const;

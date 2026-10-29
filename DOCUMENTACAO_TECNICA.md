@@ -7,7 +7,7 @@ Este documento descreve a arquitetura, os algoritmos e o roteiro de testes do ro
 | Requisito | Onde está |
 |---|---|
 | Registro simplificado das regiões ou pontos percorridos | `GridMap`: cada célula guarda o estado (desconhecida, livre, obstáculo) e o número de passagens do robô (seção 4). |
-| Mecanismo para reduzir repetição de trajetórias | `Navigation::avoidRepetition()` e `Navigation::compareExploration()` (seção 5). |
+| Mecanismo para reduzir repetição de trajetórias | `Navigation::compareExploration()`, usado na escolha de lado (seção 5). |
 | Análise do comportamento durante a exploração | Linhas `STATS` em CSV no Monitor Serial e roteiro de testes (seções 6 e 7). |
 | Documentação técnica e demonstração funcional | Este documento e o `LEIA_PRIMEIRO.md`. A demonstração é feita com o protótipo. |
 | Representação simplificada do ambiente ou do percurso | Mapa em grade impresso no Monitor Serial (seção 4). |
@@ -48,12 +48,7 @@ flowchart TD
     F -- os dois --> H[Girar para o menos explorado]
     F -- nenhum --> I[Ré e giro: beco sem saída]
     B -- não --> J[Avançar e contar células]
-    J --> K{Célula já visitada 2 vezes ou mais?}
-    K -- não --> A
-    K -- sim --> L[Parar e olhar os lados]
-    L --> M{Lado livre menos explorado que a frente?}
-    M -- sim --> N[Girar para ele]
-    M -- não --> A
+    J --> A
 ```
 
 ## 4. Mapa em grade e registro do percurso
@@ -76,19 +71,23 @@ Abaixo do mapa sai um resumo com as contagens, a posição relativa ao início e
 
 ## 5. Mecanismo de anti-repetição
 
-O robô usa o mapa em dois momentos:
+Diante de um obstáculo, com os dois lados livres, o robô usa o mapa para escolher para onde ir (`compareExploration()`):
 
-1. **Diante de um obstáculo, com os dois lados livres.** Ele escolhe o lado com mais células desconhecidas nas próximas 3 células (`ALCANCE_AVALIACAO`). Se empatar, escolhe o lado com menos passagens nessas células. Se empatar de novo, escolhe o lado com mais espaço medido e, por último, alterna o lado preferido.
-2. **Durante o avanço, ao entrar numa área repetida.** Quando a célula atual já tem `LIMITE_REVISITAS` passagens ou mais (padrão 2), o robô para e olha os lados. Ele só vira se um lado estiver livre **e** levar a uma área menos explorada que a da frente, pelo mesmo critério do item 1. Caso contrário, segue em frente. Para não parar a cada célula, essa verificação ocorre no máximo a cada `CELULAS_ENTRE_VERIFICACOES` células (padrão 3).
+1. o lado com mais células desconhecidas nas próximas 3 células (`ALCANCE_AVALIACAO`);
+2. em empate, o lado com menos passagens nessas células;
+3. em novo empate, o lado com mais espaço medido;
+4. por último, alterna o lado preferido.
 
-A verificação durante o avanço e o critério de visitas só funcionam com `EVITAR_REPETICAO = true` no `Config.h` (desligada por padrão; veja as chaves de comportamento no `LEIA_PRIMEIRO.md`). Os dois usos compartilham `compareExploration()`. Com `EVITAR_REPETICAO = false`, a verificação durante o avanço é desligada e a escolha de lado volta a considerar só as células desconhecidas, como na versão anterior. Isso permite comparar os dois comportamentos nos testes.
+Assim, sempre que há escolha, o robô tende a ir para onde ainda não esteve, em vez de voltar por um caminho já percorrido.
+
+**Versão testada e removida:** uma versão anterior também fazia o robô parar durante o avanço, ao entrar numa célula já visitada duas vezes, para olhar os lados e procurar uma área menos explorada. No teste com o protótipo, num ambiente com obstáculos próximos, essa parada extra fazia o robô girar demais e travar, então foi retirada. É um resultado útil para a análise crítica: num espaço apertado, mais paradas para varrer custam mais tempo e manobras do que economizam em repetição.
 
 ## 6. Métricas para a análise (linhas STATS)
 
 Ao ligar, o robô imprime o cabeçalho e, a cada impressão do mapa, uma linha CSV:
 
 ```
-STATS,tempo_ms,visitadas,revisitas,obstaculos,giros,res,desvios_repeticao
+STATS,tempo_ms,visitadas,revisitas,obstaculos,giros,res
 ```
 
 | Coluna | Significado |
@@ -99,7 +98,6 @@ STATS,tempo_ms,visitadas,revisitas,obstaculos,giros,res,desvios_repeticao
 | `obstaculos` | células marcadas como obstáculo |
 | `giros` | giros de 90° realizados |
 | `res` | manobras de ré |
-| `desvios_repeticao` | giros causados pelo mecanismo de anti-repetição |
 
 **Como coletar:** ao fim de um teste, copie o conteúdo do Monitor Serial, mantenha só as linhas que começam com `STATS` e cole numa planilha, usando vírgula como separador. Gráficos úteis para o relatório:
 
@@ -107,19 +105,19 @@ STATS,tempo_ms,visitadas,revisitas,obstaculos,giros,res,desvios_repeticao
 - `revisitas` × `tempo_ms`: quanto o robô repete caminho;
 - razão `revisitas / visitadas` ao fim do teste: eficiência da exploração (quanto menor, melhor).
 
-Para mostrar o efeito do anti-repetição, repita o mesmo cenário com `EVITAR_REPETICAO = true` e `false`, pelo mesmo tempo, e compare as métricas.
+Para mostrar o efeito de uma mudança, repita o mesmo cenário com e sem ela (por exemplo, `VARRER_APOS_RE = true` e `false`), pelo mesmo tempo, e compare as métricas.
 
 ## 7. Roteiro de testes
 
 Use sempre o mesmo ponto de partida, a mesma direção inicial e o mesmo tempo de teste (por exemplo, 3 minutos). Fotografe ou desenhe o ambiente real para comparar com o mapa impresso.
 
-| # | Cenário | O que observar | Anti-repetição | Visitadas | Revisitas | Giros | Rés | Observações |
-|---|---|---|---|---|---|---|---|---|
-| 1 | Corredor reto com parede no fim | parada, escolha de lado, mapa coerente com o corredor | ligado | | | | | |
-| 2 | Sala com um obstáculo no centro | contorno do obstáculo, cobertura da sala | ligado | | | | | |
-| 3 | Mesma sala do cenário 2 | comparação com o cenário 2 | desligado | | | | | |
-| 4 | Beco sem saída (caixa em U) | ré, giro e saída do beco | ligado | | | | | |
-| 5 | Ambiente em U ou L | se o robô evita voltar pelo mesmo braço | ligado | | | | | |
+| # | Cenário | O que observar | Visitadas | Revisitas | Giros | Rés | Observações |
+|---|---|---|---|---|---|---|---|
+| 1 | Corredor reto com parede no fim | parada, escolha de lado, mapa coerente com o corredor | | | | | |
+| 2 | Sala com um obstáculo no centro | contorno do obstáculo, cobertura da sala | | | | | |
+| 3 | Mesma sala do cenário 2, com `VARRER_APOS_RE = false` | comparação com o cenário 2 | | | | | |
+| 4 | Beco sem saída (caixa em U) | ré, giro e saída do beco | | | | | |
+| 5 | Ambiente em U ou L | se o robô evita voltar pelo mesmo braço | | | | | |
 
 Para cada teste, registrar também: se houve colisão, se o robô travou e quanto o mapa impresso diverge do ambiente real.
 

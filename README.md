@@ -13,4 +13,4 @@ Robô móvel de exploração autônoma com mapeamento simplificado do ambiente (
 2. Instale a biblioteca **ESP32Servo**.
 3. Selecione a placa `ESP32 Dev Module` e envie.
 
-Pinagem, ligação, comportamento, roteiro de testes e limitações estão em [LEIA_PRIMEIRO.md](LEIA_PRIMEIRO.md). Arquitetura, algoritmos do mapa e da anti-repetição, métricas e roteiro de testes de exploração estão em [DOCUMENTACAO_TECNICA.md](DOCUMENTACAO_TECNICA.md). A comparação com os requisitos do trabalho está em [ANALISE_GRUPO_4.md](ANALISE_GRUPO_4.md). Os parâmetros ajustáveis (pinos, ângulos, limites e tempos) ficam em `Config.h`.
+Pinagem, ligação, comportamento, roteiro de testes e limitações estão em [LEIA_PRIMEIRO.md](LEIA_PRIMEIRO.md). Arquitetura, algoritmos do mapa e da escolha de direção, métricas e roteiro de testes de exploração estão em [DOCUMENTACAO_TECNICA.md](DOCUMENTACAO_TECNICA.md). A comparação com os requisitos do trabalho está em [ANALISE_GRUPO_4.md](ANALISE_GRUPO_4.md). Os parâmetros ajustáveis (pinos, ângulos, limites e tempos) ficam em `Config.h`.

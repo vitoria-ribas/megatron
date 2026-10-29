@@ -45,7 +45,7 @@ constexpr float MARGEM_EMPATE_CM = 5.0f;  // diferenca de espaco abaixo da qual 
 constexpr bool SEM_ECO_LIVRE = true;
 // Sem eco ate ECO_PERDIDO_JANELA_MS depois de uma leitura frontal valida de ate
 // ECO_PERDIDO_PERTO_CM conta como muito perto (o sensor perde o eco colado no objeto).
-constexpr bool REGRA_ECO_PERDIDO = false;  // true liga a regra abaixo
+constexpr bool REGRA_ECO_PERDIDO = true;  // false desliga a regra abaixo
 constexpr float ECO_PERDIDO_PERTO_CM = 50.0f;
 constexpr unsigned long ECO_PERDIDO_JANELA_MS = 500;
 constexpr unsigned long TEMPO_POR_CELULA_MS = 500;
@@ -58,14 +58,9 @@ constexpr bool DEPURAR = true;
 // motores girando, e para. Use com as rodas no ar e desligue para a exploracao normal.
 constexpr bool TESTE_SERVO = false;
 
-// Chaves das mudancas de comportamento em relacao a main (VARRER_APOS_RE,
-// REGRA_ECO_PERDIDO e EVITAR_REPETICAO). Desligadas, o robo se
-// move como na main; ligue uma por vez para testar.
-constexpr bool VARRER_APOS_RE = false;  // true: depois da re, varre os lados e escolhe
-
-// Anti-repeticao: ao entrar numa celula ja visitada, procura um lado menos explorado.
-constexpr bool EVITAR_REPETICAO = false;  // true liga o desvio de areas visitadas
-constexpr int LIMITE_REVISITAS = 2;  // passagens pela celula que disparam a verificacao
-constexpr int CELULAS_ENTRE_VERIFICACOES = 3;  // evita parar a cada celula
+// Chaves das mudancas de comportamento em relacao a main (VARRER_APOS_RE, abaixo, e
+// REGRA_ECO_PERDIDO, acima). Ambas foram testadas no robo; false volta ao
+// comportamento da main.
+constexpr bool VARRER_APOS_RE = true;  // depois da re, varre os lados e escolhe
 
 }  // namespace Config

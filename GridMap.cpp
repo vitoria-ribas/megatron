@@ -101,10 +101,6 @@ void GridMap::markVisited() {
   }
 }
 
-int GridMap::visitsHere() const {
-  return visits[posY][posX];
-}
-
 int GridMap::visitsAhead(int direction) const {
   int dx, dy;
   dxdy(direction, dx, dy);
