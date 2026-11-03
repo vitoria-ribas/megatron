@@ -29,7 +29,7 @@ constexpr int DIAGONAL_D = 60;
 constexpr int DIREITA = 30;
 
 constexpr float LIMITE_CM = 25.0f;
-constexpr float MUITO_PERTO_CM = 10.0f;
+constexpr float MUITO_PERTO_CM = 8.0f;
 
 constexpr unsigned long TEMPO_SERVO_MS = 300;
 constexpr unsigned long TEMPO_RE_MS = 350;

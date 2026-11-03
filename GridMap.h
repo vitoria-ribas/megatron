@@ -2,12 +2,13 @@
 
 #include <Arduino.h>
 
+#include <map>
+#include <utility>
+
 class GridMap {
  public:
   enum Cell : uint8_t { DESCONHECIDO = 0, LIVRE = 1, OBSTACULO = 2 };
 
-  static const int TAMANHO = 21;
-  static const int ORIGEM = TAMANHO / 2;
   static const int ALCANCE_AVALIACAO = 3;
   static const int MAX_PATH = 1024;
 
@@ -33,24 +34,25 @@ class GridMap {
   int pathPointX(int index) const;
   int pathPointY(int index) const;
 
+  const std::map<std::pair<int, int>, Cell>& allCells() const { return cells; }
+
   int visitedCount() const;
   int obstacleCount() const;
-  int unknownCount() const;
   void printMap() const;
 
  private:
-  int posX = ORIGEM;
-  int posY = ORIGEM;
+  int wx = 0;
+  int wy = 0;
   int dir = 0;
 
-  Cell cells[TAMANHO][TAMANHO];
+  std::map<std::pair<int, int>, Cell> cells;
 
   int pathX[MAX_PATH];
   int pathY[MAX_PATH];
   int pathLen = 0;
 
   void appendPath();
+  void bounds(int& minX, int& minY, int& maxX, int& maxY) const;
   static void dxdy(int direction, int& dx, int& dy);
-  static bool inBounds(int gx, int gy);
   static char headingChar(int direction);
 };
