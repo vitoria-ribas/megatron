@@ -9,6 +9,7 @@ class GridMap {
   static const int TAMANHO = 21;
   static const int ORIGEM = TAMANHO / 2;
   static const int ALCANCE_AVALIACAO = 3;
+  static const int MAX_PATH = 1024;
 
   void begin();
   void reset();
@@ -27,6 +28,11 @@ class GridMap {
   void markObstacle(int direction);
   int unknownAhead(int direction) const;
 
+  Cell cellAt(int gx, int gy) const;
+  int pathLength() const;
+  int pathPointX(int index) const;
+  int pathPointY(int index) const;
+
   int visitedCount() const;
   int obstacleCount() const;
   int unknownCount() const;
@@ -39,6 +45,11 @@ class GridMap {
 
   Cell cells[TAMANHO][TAMANHO];
 
+  int pathX[MAX_PATH];
+  int pathY[MAX_PATH];
+  int pathLen = 0;
+
+  void appendPath();
   static void dxdy(int direction, int& dx, int& dy);
   static bool inBounds(int gx, int gy);
   static char headingChar(int direction);

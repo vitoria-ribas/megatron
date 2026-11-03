@@ -41,4 +41,8 @@ constexpr bool SEM_ECO_LIVRE = true;
 constexpr unsigned long TEMPO_POR_CELULA_MS = 500;
 constexpr int IMPRIMIR_MAPA_A_CADA_N_CELULAS = 4;
 
+constexpr const char* WIFI_SSID = "Megatron";
+constexpr const char* WIFI_PASS = "12345678";
+constexpr uint16_t PORTA_WEB = 80;
+
 }  // namespace Config

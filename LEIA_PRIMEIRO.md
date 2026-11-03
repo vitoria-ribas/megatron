@@ -13,8 +13,9 @@ Abra `megatron.ino` na Arduino IDE. Mantenha todos os arquivos `.h` e `.cpp` des
 | `ServoScanner.h/.cpp` | Inicialização do servo, posicionamento e leitura dos setores observados. |
 | `Navigation.h/.cpp` | Regras de avanço, análise de obstáculos, ré, giro e exploração. |
 | `GridMap.h/.cpp` | Grade de células, pose estimada e impressão do mapa no Serial. |
+| `WebMap.h/.cpp` | Ponto de acesso WiFi e página web que desenha a trajetória e os obstáculos. |
 
-Os módulos se comunicam por interfaces de classe: a navegação usa os módulos de motores, sensor e servo, e registra o percurso no `GridMap`. A separação organiza o código e implementa memória de áreas visitadas com mapeamento simplificado do ambiente.
+Os módulos se comunicam por interfaces de classe: a navegação usa os módulos de motores, sensor e servo, e registra o percurso no `GridMap`. O `WebMap` lê o `GridMap` (trajetória, pose e obstáculos) e os expõe em JSON via HTTP. A separação organiza o código e implementa memória de áreas visitadas com mapeamento simplificado do ambiente.
 
 ## Pinagem
 
@@ -50,6 +51,8 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 - Obstáculos detectados à frente, à esquerda ou à direita são marcados nas células correspondentes do mapa. As leituras diagonais orientam a navegação, mas não são gravadas na grade.
 - Ao escolher entre dois lados livres, o robô prefere a direção com mais células desconhecidas à frente; em empate, compara o espaço disponível e, por fim, alterna a preferência (`preferLeft`).
 - O mapa é impresso no Monitor Serial no início, a cada `IMPRIMIR_MAPA_A_CADA_N_CELULAS` células percorridas e sempre que o robô toma uma decisão (giro ou beco sem saída).
+- O robô também cria um ponto de acesso WiFi (`WIFI_SSID`/`WIFI_PASS`) e serve uma página web em `http://<IP do ESP32>`. A página desenha em tempo real a grade, a trajetória percorrida (células livres), os obstáculos detectados e a posição/orientação atual do robô, atualizando a cada 500 ms pelo endpoint `/state`.
+- A trajetória exibida é a sequência ordenada de células percorridas (`GridMap::path`), registrada a cada avanço de célula; giros e ré não adicionam novos pontos.
 - `SEM_ECO_LIVRE` controla se ausência de eco conta como caminho livre. O valor padrão é `true`; leia as limitações abaixo antes de mantê-lo.
 
 ## Como testar
@@ -60,6 +63,7 @@ Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compat�
 4. Use caixas grandes para confirmar as leituras dos setores no Monitor Serial (115200 baud).
 5. Teste frente bloqueada com um lado livre, frente e lados bloqueados e obstáculo muito próximo.
 6. Teste no chão com a traseira livre e acesso ao desligamento. Não há sensor traseiro, sensor lateral contínuo ou detector de bordas/escadas; a leitura frontal não verifica o caminho durante a ré.
+7. Para ver o desenho, conecte um celular ou computador ao WiFi do robô (`Megatron` / `12345678`) e abra o IP impresso no Monitor Serial (ex.: `http://192.168.4.1`).
 
 ## Limitações e próximos passos
 

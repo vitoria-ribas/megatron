@@ -15,7 +15,18 @@ void GridMap::reset() {
   posX = ORIGEM;
   posY = ORIGEM;
   dir = 0;
+  pathLen = 0;
+  appendPath();
   markVisited();
+}
+
+void GridMap::appendPath() {
+  if (pathLen >= MAX_PATH) {
+    return;
+  }
+  pathX[pathLen] = posX;
+  pathY[pathLen] = posY;
+  ++pathLen;
 }
 
 int GridMap::x() const {
@@ -108,6 +119,7 @@ void GridMap::stepForward() {
   }
 
   markVisited();
+  appendPath();
 }
 
 void GridMap::turnLeft() {
@@ -134,6 +146,31 @@ int GridMap::unknownAhead(int direction) const {
     }
   }
   return count;
+}
+
+GridMap::Cell GridMap::cellAt(int gx, int gy) const {
+  if (!inBounds(gx, gy)) {
+    return DESCONHECIDO;
+  }
+  return cells[gy][gx];
+}
+
+int GridMap::pathLength() const {
+  return pathLen;
+}
+
+int GridMap::pathPointX(int index) const {
+  if (index < 0 || index >= pathLen) {
+    return ORIGEM;
+  }
+  return pathX[index];
+}
+
+int GridMap::pathPointY(int index) const {
+  if (index < 0 || index >= pathLen) {
+    return ORIGEM;
+  }
+  return pathY[index];
 }
 
 int GridMap::visitedCount() const {
