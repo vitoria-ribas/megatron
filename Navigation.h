@@ -30,6 +30,7 @@ class Navigation {
   unsigned long lastCellStepAt = 0;
   int cellsSincePrint = 0;
   bool preferLeft = true;
+  int avoidHeading = -1;
 
   bool isFree(float distanceCm) const;
   bool isBlocked(float distanceCm) const;

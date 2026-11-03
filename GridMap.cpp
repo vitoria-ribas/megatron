@@ -137,6 +137,12 @@ GridMap::Cell GridMap::cellAt(int gx, int gy) const {
   return it->second;
 }
 
+GridMap::Cell GridMap::cellInDirection(int direction) const {
+  int dx, dy;
+  dxdy(direction, dx, dy);
+  return cellAt(wx + dx, wy + dy);
+}
+
 int GridMap::pathLength() const {
   return pathLen;
 }

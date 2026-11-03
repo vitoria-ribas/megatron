@@ -30,6 +30,7 @@ class GridMap {
   int unknownAhead(int direction) const;
 
   Cell cellAt(int gx, int gy) const;
+  Cell cellInDirection(int direction) const;
   int pathLength() const;
   int pathPointX(int index) const;
   int pathPointY(int index) const;

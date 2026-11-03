@@ -95,11 +95,13 @@ void Navigation::turn(bool left) {
   stop();
   delay(150);
 
+  const int oldHeading = map.heading();
   if (left) {
     map.turnLeft();
   } else {
     map.turnRight();
   }
+  avoidHeading = oldHeading;
 
   preferLeft = !left;
 }
@@ -155,8 +157,12 @@ void Navigation::analyzeObstacle() {
     return;
   }
 
-  const bool leftFree = isFree(diagonalLeft) && isFree(left);
-  const bool rightFree = isFree(diagonalRight) && isFree(right);
+  const bool leftFree = isFree(diagonalLeft) && isFree(left) &&
+      map.cellInDirection(map.headingLeft()) != GridMap::OBSTACULO &&
+      map.headingLeft() != avoidHeading;
+  const bool rightFree = isFree(diagonalRight) && isFree(right) &&
+      map.cellInDirection(map.headingRight()) != GridMap::OBSTACULO &&
+      map.headingRight() != avoidHeading;
 
   if (leftFree || rightFree) {
     bool chooseLeft = leftFree;
@@ -201,7 +207,15 @@ void Navigation::analyzeObstacle() {
     Serial.println("Frente e ambos os lados bloqueados: recuando e girando!");
     const bool alreadyTurned = reverse();
     if (!alreadyTurned) {
-      turn(preferLeft);
+      bool dir = preferLeft;
+      const bool leftObstacle =
+          map.cellInDirection(map.headingLeft()) == GridMap::OBSTACULO;
+      const bool rightObstacle =
+          map.cellInDirection(map.headingRight()) == GridMap::OBSTACULO;
+      if (leftObstacle != rightObstacle) {
+        dir = !leftObstacle;
+      }
+      turn(dir);
     }
     map.printMap();
   }
@@ -239,5 +253,6 @@ void Navigation::update() {
 
   if (millis() - advanceStartedAt >= 500) {
     reverseAttempts = 0;
+    avoidHeading = -1;
   }
 }
