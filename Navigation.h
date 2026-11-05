@@ -23,6 +23,7 @@ class Navigation {
   GridMap map;
 
   int reverseAttempts = 0;
+  int blockedCount = 0;
   bool advancing = false;
   unsigned long advanceStartedAt = 0;
   unsigned long lastCellStepAt = 0;

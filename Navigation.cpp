@@ -59,6 +59,7 @@ float Navigation::frontReading(float rawDistanceCm) {
 void Navigation::stop() {
   motors.stop();
   advancing = false;
+  blockedCount = 0;
 }
 
 void Navigation::printDistance(const char* label, float distanceCm) {
@@ -619,9 +620,17 @@ void Navigation::update() {
   Serial.println();
 
   if (isBlocked(front)) {
-    stop();
-    analyzeObstacle();
-    return;
+    ++blockedCount;
+    // Exige 2 leituras consecutivas de obstaculo (~120ms) para confirmar bloqueio real.
+    // Elimina frenagens falsas provocadas por ruidos acusticos transientes ou ecos perdidos.
+    if (blockedCount >= 2) {
+      blockedCount = 0;
+      stop();
+      analyzeObstacle();
+      return;
+    }
+  } else {
+    blockedCount = 0;
   }
 
   // Velocidade estavel em linha reta: elimina oscilacoes continuas que causam zigue-zague
