@@ -77,8 +77,8 @@ bool Navigation::reverse() {
   stop();
 
   if (reverseAttempts >= Config::MAX_RES_SEGUIDAS) {
-    Serial.println("Limite de res atingido. Executando meia-volta (180) para desobstruir!");
-    turn180(true);
+    Serial.println("Limite de res atingido. Robo perdido/preso!");
+    scan360AndRecover();
     reverseAttempts = 0;
     return true;
   }
@@ -234,17 +234,21 @@ void Navigation::analyzeObstacle() {
     }
   }
 
-  // 3. Analisa os setores laterais com o servo rapidamente (Esquerda e Direita)
-  Serial.println("Analisando setores laterais...");
+  // 3. Analisa os setores laterais com o servo
+  Serial.println("Analisando setores ao redor...");
 
+  const float diagonalLeft = scanner.look(Config::DIAGONAL_E, sensor);
   const float left = scanner.look(Config::ESQUERDA, sensor);
+  const float diagonalRight = scanner.look(Config::DIAGONAL_D, sensor);
   const float right = scanner.look(Config::DIREITA, sensor);
 
   scanner.position(Config::FRENTE);
   front = sensor.readFiltered();
 
   printDistance("F=", front);
+  printDistance("DE=", diagonalLeft);
   printDistance("E=", left);
+  printDistance("DD=", diagonalRight);
   printDistance("D=", right);
   Serial.println();
 
@@ -253,84 +257,77 @@ void Navigation::analyzeObstacle() {
   map.markRay(map.headingLeft(), left);
   map.markRay(map.headingRight(), right);
 
-  // 4. Se a frente liberou durante a verificacao, continua em linha reta
+  // 4. REGRA FUNDAMENTAL: Se ao analisar o espaco frontal estiver livre,
+  // CONTINUA EM LINHA RETA e NAO vira de posicao!
   if (isFree(front)) {
     Serial.println("[ESPACO LIVRE A FRENTE] Caminho livre detectado! Continuando em linha reta.");
     return;
   }
 
-  // Espaco livre medido de cada lado (sem eco = espaco aberto amplo)
-  const float spaceLeft = left < 0 ? 999.0f : left;
-  const float spaceRight = right < 0 ? 999.0f : right;
-  const bool leftFree = (left < 0) || (left > Config::LIMITE_CM);
-  const bool rightFree = (right < 0) || (right > Config::LIMITE_CM);
+  // 5. Somente se a frente estiver BLOQUEADA, decide para onde virar:
+  const bool leftFree = isFree(diagonalLeft) && isFree(left);
+  const bool rightFree = isFree(diagonalRight) && isFree(right);
 
-  // Bateu em outro obstaculo logo depois de girar: da meia-volta para o lado oposto
-  if (millis() - lastTurnAt < Config::JANELA_APOS_GIRO_MS) {
-    Serial.println("Obstaculo logo apos girar: executando meia-volta (180).");
-    turn180(spaceLeft >= spaceRight);
-    return;
-  }
+  // Espaco livre medido de cada lado (sem eco = muito espaco)
+  const float dl = diagonalLeft < 0 ? 999.0f : diagonalLeft;
+  const float el = left < 0 ? 999.0f : left;
+  const float dr = diagonalRight < 0 ? 999.0f : diagonalRight;
+  const float er = right < 0 ? 999.0f : right;
+  const float openLeft = dl < el ? dl : el;
+  const float openRight = dr < er ? dr : er;
 
-  // 5. DECISAO RAPIDA DE SAIDA:
-  // CASO 1: AMBOS OS LADOS BLOQUEADOS (QUINA DE PAREDE / BECO SEM SAIDA)
-  // Em uma quina de 90 graus (como visto na foto), a frente e ambos os lados estao fechados.
-  // A unica saida aberta e direta e atras: recua e gira 180 graus diretamente!
-  if (!leftFree && !rightFree) {
-    Serial.println();
-    Serial.println("=============================================================");
-    Serial.println("[QUINA DETECTADA] Frente e ambos os lados bloqueados!");
-    Serial.println("Executando recuo e meia-volta (180) rapida para o espaco aberto...");
-    Serial.println("=============================================================");
-    turn180(spaceLeft >= spaceRight);
-    return;
-  }
+  if (leftFree || rightFree) {
+    bool chooseLeft = leftFree;
 
-  // CASO 2: PELO MENOS UM DOS LADOS ESTA LIVRE
-  bool chooseLeft = false;
+    if (leftFree && rightFree) {
+      const float scoreLeft = calculateDirectionScore(map.headingLeft(), openLeft);
+      const float scoreRight = calculateDirectionScore(map.headingRight(), openRight);
 
-  if (leftFree && !rightFree) {
-    chooseLeft = true;
-  } else if (!leftFree && rightFree) {
-    chooseLeft = false;
-  } else {
-    // Ambos os lados estao livres (> LIMITE_CM):
-    // Usa a heuristica de mapa do Grupo 4 (fronteiras desconhecidas e espaco livre)
-    const float scoreLeft = calculateDirectionScore(map.headingLeft(), spaceLeft);
-    const float scoreRight = calculateDirectionScore(map.headingRight(), spaceRight);
+      Serial.print("  [HEURISTICA] Score Esquerda: ");
+      Serial.print(scoreLeft, 1);
+      Serial.print(" | Score Direita: ");
+      Serial.println(scoreRight, 1);
 
-    Serial.print("  [HEURISTICA] Score Esquerda: ");
-    Serial.print(scoreLeft, 1);
-    Serial.print(" | Score Direita: ");
-    Serial.println(scoreRight, 1);
-
-    if (fabsf(scoreLeft - scoreRight) > 1.5f) {
-      chooseLeft = scoreLeft > scoreRight;
-    } else {
-      chooseLeft = spaceLeft >= spaceRight;
+      if (fabsf(scoreLeft - scoreRight) > 1.5f) {
+        chooseLeft = scoreLeft > scoreRight;
+      } else {
+        chooseLeft = openLeft >= openRight;
+      }
     }
-  }
 
-  Serial.print("Girando para o lado mais livre: ");
-  Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
-  turn(chooseLeft);
-  map.printMap();
+    Serial.print("Frente bloqueada. Escolhendo melhor caminho: ");
+    Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
+    turn(chooseLeft);
+    map.printMap();
+  } else if (openLeft > Config::LIMITE_CM || openRight > Config::LIMITE_CM) {
+    // Um dos lados tem mais espaco que o limite: vira para ele diretamente
+    const bool chooseLeft = openLeft >= openRight;
+    Serial.print("Virando para o lado com maior folga: ");
+    Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
+    turn(chooseLeft);
+    map.printMap();
+  } else {
+    Serial.println("Frente e ambos os lados bloqueados: meia-volta de 180 graus...");
+    turn180(openLeft >= openRight);
+  }
 }
 
 void Navigation::turn180(bool turnLeft180) {
   stop();
   Serial.println();
   Serial.println("=============================================================");
-  Serial.println("[MEIA-VOLTA 180] Recuando e virando para o espaco aberto...");
+  Serial.println("[SEM SAIDA] Frente e ambos os lados bloqueados!");
+  Serial.println("Recuando centimetros a mais para descolar da quina/parede...");
   Serial.println("=============================================================");
 
-  // 1) Recua centimetros a mais para descolar da quina/parede antes de girar
+  // 1) Recua centimetros a mais para descolar da quina antes de girar
   motors.move(-1, -1, Config::VELOCIDADE_RE, Config::VELOCIDADE_RE);
   delay(Config::TEMPO_RE_SEM_SAIDA_MS);
   stop();
   delay(Config::TEMPO_ESTABILIZACAO_MS);
 
-  // 2) Meia-volta de 180 graus continua diretamente para a saida aberta
+  // 2) Meia-volta de 180 graus para o espaco aberto
+  Serial.println("Girando 180 graus para buscar a saida aberta...");
   turnAround(turnLeft180);
   scanner.position(Config::FRENTE);
 
@@ -349,7 +346,7 @@ void Navigation::escapeCorner() {
   stop();
   Serial.println();
   Serial.println("=============================================================");
-  Serial.println("[PRESO EM QUINA] Recuando e executando meia-volta rapida...");
+  Serial.println("[PRESO EM QUINA] Recuando e executando meia-volta...");
   Serial.println("=============================================================");
 
   // 1) Recua centimetros a mais para se afastar da quina
@@ -399,13 +396,19 @@ void Navigation::recoverFromStuck() {
   stop();
   delay(Config::TEMPO_ESTABILIZACAO_MS);
 
-  // 2) Escaneia rapidamente os lados para ver a melhor opcao de saida
+  // 2) Escaneia os lados para ver a melhor opcao de saida
+  const float diagonalLeft = scanner.look(Config::DIAGONAL_E, sensor);
   const float left = scanner.look(Config::ESQUERDA, sensor);
+  const float diagonalRight = scanner.look(Config::DIAGONAL_D, sensor);
   const float right = scanner.look(Config::DIREITA, sensor);
   scanner.position(Config::FRENTE);
 
-  const float spaceLeft = left < 0 ? 999.0f : left;
-  const float spaceRight = right < 0 ? 999.0f : right;
+  const float dl = diagonalLeft < 0 ? 999.0f : diagonalLeft;
+  const float el = left < 0 ? 999.0f : left;
+  const float dr = diagonalRight < 0 ? 999.0f : diagonalRight;
+  const float er = right < 0 ? 999.0f : right;
+  const float spaceLeft = dl < el ? dl : el;
+  const float spaceRight = dr < er ? dr : er;
 
   if (spaceLeft > Config::LIMITE_CM || spaceRight > Config::LIMITE_CM) {
     const bool chooseLeft = spaceLeft >= spaceRight;
