@@ -25,12 +25,15 @@ class GridMap {
 
   void markVisited();
   void markObstacle(int direction);
+  void markRay(int direction, float distanceCm);
   int unknownAhead(int direction) const;
+  int visitedAhead(int direction) const;
 
   int visitedCount() const;
   int obstacleCount() const;
   int unknownCount() const;
   void printMap() const;
+  static char headingChar(int direction);
 
  private:
   int posX = ORIGEM;
@@ -41,5 +44,4 @@ class GridMap {
 
   static void dxdy(int direction, int& dx, int& dy);
   static bool inBounds(int gx, int gy);
-  static char headingChar(int direction);
 };

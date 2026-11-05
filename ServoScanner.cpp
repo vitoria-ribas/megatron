@@ -6,6 +6,7 @@
 #include "DistanceSensor.h"
 
 bool ServoScanner::begin() {
+  ESP32PWM::allocateTimer(0);
   head.setPeriodHertz(50);
   head.attach(Config::PINO_SERVO, 1000, 2000);
   return head.attached();

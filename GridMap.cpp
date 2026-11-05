@@ -94,6 +94,43 @@ void GridMap::markObstacle(int direction) {
   }
 }
 
+void GridMap::markRay(int direction, float distanceCm) {
+  int dx, dy;
+  dxdy(direction, dx, dy);
+
+  if (distanceCm < 0) {
+    for (int i = 1; i <= ALCANCE_AVALIACAO; ++i) {
+      const int gx = posX + dx * i;
+      const int gy = posY + dy * i;
+      if (!inBounds(gx, gy)) break;
+      if (cells[gy][gx] == DESCONHECIDO) {
+        cells[gy][gx] = LIVRE;
+      }
+    }
+    return;
+  }
+
+  const int targetCell = (int)roundf(distanceCm / 12.0f);
+  const int limit = targetCell < ALCANCE_AVALIACAO ? targetCell : ALCANCE_AVALIACAO;
+
+  for (int i = 1; i < limit; ++i) {
+    const int gx = posX + dx * i;
+    const int gy = posY + dy * i;
+    if (!inBounds(gx, gy)) break;
+    if (cells[gy][gx] == DESCONHECIDO) {
+      cells[gy][gx] = LIVRE;
+    }
+  }
+
+  if (limit >= 1 && limit <= ALCANCE_AVALIACAO) {
+    const int gx = posX + dx * limit;
+    const int gy = posY + dy * limit;
+    if (inBounds(gx, gy) && cells[gy][gx] != LIVRE) {
+      cells[gy][gx] = OBSTACULO;
+    }
+  }
+}
+
 void GridMap::stepForward() {
   int dx, dy;
   dxdy(dir, dx, dy);
@@ -130,6 +167,24 @@ int GridMap::unknownAhead(int direction) const {
       break;
     }
     if (cells[gy][gx] == DESCONHECIDO) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+int GridMap::visitedAhead(int direction) const {
+  int dx, dy;
+  dxdy(direction, dx, dy);
+
+  int count = 0;
+  for (int i = 1; i <= ALCANCE_AVALIACAO; ++i) {
+    const int gx = posX + dx * i;
+    const int gy = posY + dy * i;
+    if (!inBounds(gx, gy)) {
+      break;
+    }
+    if (cells[gy][gx] == LIVRE) {
       ++count;
     }
   }
