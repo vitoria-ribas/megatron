@@ -77,8 +77,8 @@ bool Navigation::reverse() {
   stop();
 
   if (reverseAttempts >= Config::MAX_RES_SEGUIDAS) {
-    Serial.println("Limite de res atingido. Robo perdido/preso!");
-    scan360AndRecover();
+    Serial.println("Limite de res atingido. Executando meia-volta (180) para desobstruir!");
+    turn180(true);
     reverseAttempts = 0;
     return true;
   }
@@ -234,21 +234,17 @@ void Navigation::analyzeObstacle() {
     }
   }
 
-  // 3. Analisa os setores laterais com o servo
-  Serial.println("Analisando setores ao redor...");
+  // 3. Analisa os setores laterais com o servo rapidamente (Esquerda e Direita)
+  Serial.println("Analisando setores laterais...");
 
-  const float diagonalLeft = scanner.look(Config::DIAGONAL_E, sensor);
   const float left = scanner.look(Config::ESQUERDA, sensor);
-  const float diagonalRight = scanner.look(Config::DIAGONAL_D, sensor);
   const float right = scanner.look(Config::DIREITA, sensor);
 
   scanner.position(Config::FRENTE);
   front = sensor.readFiltered();
 
   printDistance("F=", front);
-  printDistance("DE=", diagonalLeft);
   printDistance("E=", left);
-  printDistance("DD=", diagonalRight);
   printDistance("D=", right);
   Serial.println();
 
@@ -257,310 +253,125 @@ void Navigation::analyzeObstacle() {
   map.markRay(map.headingLeft(), left);
   map.markRay(map.headingRight(), right);
 
-  // 4. REGRA FUNDAMENTAL: Se ao analisar o espaco frontal estiver livre,
-  // CONTINUA EM LINHA RETA e NAO vira de posicao!
+  // 4. Se a frente liberou durante a verificacao, continua em linha reta
   if (isFree(front)) {
     Serial.println("[ESPACO LIVRE A FRENTE] Caminho livre detectado! Continuando em linha reta.");
     return;
   }
 
-  // 5. Somente se a frente estiver BLOQUEADA, decide para onde virar:
-  const bool leftFree = isFree(diagonalLeft) && isFree(left);
-  const bool rightFree = isFree(diagonalRight) && isFree(right);
-
-  // Espaco livre medido de cada lado (sem eco = muito espaco)
-  const float dl = diagonalLeft < 0 ? 999.0f : diagonalLeft;
-  const float el = left < 0 ? 999.0f : left;
-  const float dr = diagonalRight < 0 ? 999.0f : diagonalRight;
-  const float er = right < 0 ? 999.0f : right;
-  const float openLeft = dl < el ? dl : el;
-  const float openRight = dr < er ? dr : er;
+  // Espaco livre medido de cada lado (sem eco = espaco aberto amplo)
+  const float spaceLeft = left < 0 ? 999.0f : left;
+  const float spaceRight = right < 0 ? 999.0f : right;
+  const bool leftFree = (left < 0) || (left > Config::LIMITE_CM);
+  const bool rightFree = (right < 0) || (right > Config::LIMITE_CM);
 
   // Bateu em outro obstaculo logo depois de girar: da meia-volta para o lado oposto
   if (millis() - lastTurnAt < Config::JANELA_APOS_GIRO_MS) {
-    Serial.println("Obstaculo logo apos girar: tentando o lado totalmente oposto (180).");
-    turn180(openLeft >= openRight);
+    Serial.println("Obstaculo logo apos girar: executando meia-volta (180).");
+    turn180(spaceLeft >= spaceRight);
     return;
   }
 
-  if (leftFree || rightFree) {
-    bool chooseLeft = leftFree;
-
-    if (leftFree && rightFree) {
-      const float scoreLeft = calculateDirectionScore(map.headingLeft(), openLeft);
-      const float scoreRight = calculateDirectionScore(map.headingRight(), openRight);
-
-      Serial.print("  [HEURISTICA] Score Esquerda: ");
-      Serial.print(scoreLeft, 1);
-      Serial.print(" | Score Direita: ");
-      Serial.println(scoreRight, 1);
-
-      if (fabsf(scoreLeft - scoreRight) > 1.5f) {
-        chooseLeft = scoreLeft > scoreRight;
-      } else {
-        chooseLeft = openLeft >= openRight;
-      }
-    }
-
-    Serial.print("Frente bloqueada. Escolhendo melhor caminho: ");
-    Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
-    turn(chooseLeft);
-    if (!turnUntilFree(chooseLeft, 1)) {
-      Serial.println("Ainda sem saida frontal: varredura 360 para achar caminho...");
-      scan360AndRecover();
-    }
-    map.printMap();
-  } else {
-    Serial.println("Frente e ambos os lados bloqueados: meia-volta de 180 graus...");
-    turn180(openLeft >= openRight);
+  // 5. DECISAO RAPIDA DE SAIDA:
+  // CASO 1: AMBOS OS LADOS BLOQUEADOS (QUINA DE PAREDE / BECO SEM SAIDA)
+  // Em uma quina de 90 graus (como visto na foto), a frente e ambos os lados estao fechados.
+  // A unica saida aberta e direta e atras: recua e gira 180 graus diretamente!
+  if (!leftFree && !rightFree) {
+    Serial.println();
+    Serial.println("=============================================================");
+    Serial.println("[QUINA DETECTADA] Frente e ambos os lados bloqueados!");
+    Serial.println("Executando recuo e meia-volta (180) rapida para o espaco aberto...");
+    Serial.println("=============================================================");
+    turn180(spaceLeft >= spaceRight);
+    return;
   }
+
+  // CASO 2: PELO MENOS UM DOS LADOS ESTA LIVRE
+  bool chooseLeft = false;
+
+  if (leftFree && !rightFree) {
+    chooseLeft = true;
+  } else if (!leftFree && rightFree) {
+    chooseLeft = false;
+  } else {
+    // Ambos os lados estao livres (> LIMITE_CM):
+    // Usa a heuristica de mapa do Grupo 4 (fronteiras desconhecidas e espaco livre)
+    const float scoreLeft = calculateDirectionScore(map.headingLeft(), spaceLeft);
+    const float scoreRight = calculateDirectionScore(map.headingRight(), spaceRight);
+
+    Serial.print("  [HEURISTICA] Score Esquerda: ");
+    Serial.print(scoreLeft, 1);
+    Serial.print(" | Score Direita: ");
+    Serial.println(scoreRight, 1);
+
+    if (fabsf(scoreLeft - scoreRight) > 1.5f) {
+      chooseLeft = scoreLeft > scoreRight;
+    } else {
+      chooseLeft = spaceLeft >= spaceRight;
+    }
+  }
+
+  Serial.print("Girando para o lado mais livre: ");
+  Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
+  turn(chooseLeft);
+  map.printMap();
 }
 
 void Navigation::turn180(bool turnLeft180) {
   stop();
   Serial.println();
   Serial.println("=============================================================");
-  Serial.println("[SEM SAIDA] Frente e ambos os lados bloqueados!");
-  Serial.println("Recuando centimetros a mais para descolar da quina/parede...");
+  Serial.println("[MEIA-VOLTA 180] Recuando e virando para o espaco aberto...");
   Serial.println("=============================================================");
 
-  // 1) Recua centimetros a mais para descolar da quina antes de girar
+  // 1) Recua centimetros a mais para descolar da quina/parede antes de girar
   motors.move(-1, -1, Config::VELOCIDADE_RE, Config::VELOCIDADE_RE);
   delay(Config::TEMPO_RE_SEM_SAIDA_MS);
   stop();
-  delay(150);
+  delay(Config::TEMPO_ESTABILIZACAO_MS);
 
-  // 2) Meia-volta de 180 graus para o lado com mais espaco
-  Serial.println("Girando 180 graus para buscar a saida oposta...");
+  // 2) Meia-volta de 180 graus continua diretamente para a saida aberta
   turnAround(turnLeft180);
-  delay(150);
-
-  // 3) Verifica a saida oposta
   scanner.position(Config::FRENTE);
-  float opposite = frontReading(sensor.readFiltered());
-
-  printDistance("Saida Oposta=", opposite);
-  Serial.println();
-
-  if (isFree(opposite)) {
-    Serial.println("[MELHOR SAIDA ENCONTRADA] Caminho oposto totalmente livre! Prosseguindo...");
-    reverseAttempts = 0;
-    map.printMap();
-    return;
-  }
-
-  // 4) Se o lado oposto ainda tiver algum obstaculo, analisa os lados para escolher a melhor saida
-  Serial.println("Analisando setores ao redor para encontrar a melhor opcao de saida...");
-  const float diagonalLeft = scanner.look(Config::DIAGONAL_E, sensor);
-  const float left = scanner.look(Config::ESQUERDA, sensor);
-  const float diagonalRight = scanner.look(Config::DIAGONAL_D, sensor);
-  const float right = scanner.look(Config::DIREITA, sensor);
-  scanner.position(Config::FRENTE);
-
-  const float dl = diagonalLeft < 0 ? 999.0f : diagonalLeft;
-  const float el = left < 0 ? 999.0f : left;
-  const float dr = diagonalRight < 0 ? 999.0f : diagonalRight;
-  const float er = right < 0 ? 999.0f : right;
-  const float spaceLeft = dl < el ? dl : el;
-  const float spaceRight = dr < er ? dr : er;
-
-  if (isFree(diagonalLeft) && isFree(left)) {
-    Serial.println("Melhor opcao de saida: ESQUERDA.");
-    turn(true);
-  } else if (isFree(diagonalRight) && isFree(right)) {
-    Serial.println("Melhor opcao de saida: DIREITA.");
-    turn(false);
-  } else if (spaceLeft > spaceRight && spaceLeft > Config::LIMITE_CM) {
-    Serial.println("Maior espaco livre: ESQUERDA.");
-    turn(true);
-  } else if (spaceRight > Config::LIMITE_CM) {
-    Serial.println("Maior espaco livre: DIREITA.");
-    turn(false);
-  } else {
-    Serial.println("Todas as direcoes proximas bloqueadas! Varredura 360 completa...");
-    scan360AndRecover();
-  }
 
   reverseAttempts = 0;
+  obstacleBurst = 0;
   map.printMap();
 }
 
 bool Navigation::turnUntilFree(bool left, int maxExtraTurns) {
-  scanner.position(Config::FRENTE);
-  float front = frontReading(sensor.readFiltered());
-  int extra = 0;
-
-  while (!isFree(front) && extra < maxExtraTurns) {
-    Serial.println("Frente ainda bloqueada apos girar: continuando o giro...");
-    turn(left);
-    front = frontReading(sensor.readFiltered());
-    ++extra;
-  }
-
-  return isFree(front);
+  (void)left;
+  (void)maxExtraTurns;
+  return true;
 }
 
 void Navigation::escapeCorner() {
   stop();
   Serial.println();
   Serial.println("=============================================================");
-  Serial.println("[PRESO] Muitos obstaculos seguidos: quina/corredor sem saida!");
-  Serial.println("Recuando centimetros a mais e buscando a melhor saida...");
+  Serial.println("[PRESO EM QUINA] Recuando e executando meia-volta rapida...");
   Serial.println("=============================================================");
 
   // 1) Recua centimetros a mais para se afastar da quina
   motors.move(-1, -1, Config::VELOCIDADE_RE, Config::VELOCIDADE_RE);
   delay(Config::TEMPO_RE_SEM_SAIDA_MS);
   stop();
-  delay(150);
+  delay(Config::TEMPO_ESTABILIZACAO_MS);
 
   // 2) Meia-volta para sair da quina
   const bool direction = escapeLeft;
   escapeLeft = !escapeLeft;
   turnAround(direction);
-  delay(150);
-
-  // 3) Analisa a melhor saida apos a meia-volta
-  scanner.position(Config::FRENTE);
-  float front = frontReading(sensor.readFiltered());
-  if (isFree(front)) {
-    Serial.println("[SAIDA LIVRE] Caminho livre apos a meia-volta. Prosseguindo...");
-    reverseAttempts = 0;
-    map.printMap();
-    return;
-  }
-
-  // Se nao liberou direto, analisa os lados para escolher a saida mais aberta
-  const float diagonalLeft = scanner.look(Config::DIAGONAL_E, sensor);
-  const float left = scanner.look(Config::ESQUERDA, sensor);
-  const float diagonalRight = scanner.look(Config::DIAGONAL_D, sensor);
-  const float right = scanner.look(Config::DIREITA, sensor);
   scanner.position(Config::FRENTE);
 
-  const float dl = diagonalLeft < 0 ? 999.0f : diagonalLeft;
-  const float el = left < 0 ? 999.0f : left;
-  const float dr = diagonalRight < 0 ? 999.0f : diagonalRight;
-  const float er = right < 0 ? 999.0f : right;
-  const float spaceLeft = dl < el ? dl : el;
-  const float spaceRight = dr < er ? dr : er;
-
-  if (spaceLeft > Config::LIMITE_CM || spaceRight > Config::LIMITE_CM) {
-    const bool chooseLeft = spaceLeft >= spaceRight;
-    Serial.print("Melhor opcao de saida lateral: ");
-    Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
-    turn(chooseLeft);
-    map.printMap();
-  } else {
-    Serial.println("[VARREDURA 360] Nenhuma saida lateral clara; buscando melhor rota...");
-    scan360AndRecover();
-  }
+  reverseAttempts = 0;
+  obstacleBurst = 0;
+  map.printMap();
 }
 
 void Navigation::scan360AndRecover() {
-  stop();
-  Serial.println();
-  Serial.println("=============================================================");
-  Serial.println("[ALERTA] Robo perdido e sem espaco livre!");
-  Serial.println("Iniciando VARREDURA 360 GRAUS para escanear o ambiente...");
-  Serial.println("=============================================================");
-
-  float distances[4] = {-1.0f, -1.0f, -1.0f, -1.0f};
-  int unknownScores[4] = {0, 0, 0, 0};
-  bool freeDirs[4] = {false, false, false, false};
-
-  scanner.position(Config::FRENTE);
-
-  // Executa uma varredura 360 graus completa em 4 quadrantes cardeais (N, L, S, O)
-  for (int step = 0; step < 4; ++step) {
-    const int currentHeading = map.heading();
-    delay(150);
-
-    const float d = sensor.readFiltered();
-    distances[currentHeading] = d;
-    freeDirs[currentHeading] = isFree(d);
-    unknownScores[currentHeading] = map.unknownAhead(currentHeading);
-
-    if (isBlocked(d)) {
-      map.markObstacle(currentHeading);
-    }
-
-    Serial.print("  [SCAN 360] Direcao ");
-    Serial.print(GridMap::headingChar(currentHeading));
-    Serial.print(" (");
-    Serial.print(currentHeading);
-    Serial.print("): Distancia = ");
-    if (d >= 0) {
-      Serial.print(d, 1);
-      Serial.print(" cm");
-    } else {
-      Serial.print("SEM ECO (LIVRE)");
-    }
-    Serial.print(" | Celulas desconhecidas = ");
-    Serial.print(unknownScores[currentHeading]);
-    Serial.print(" | Status: ");
-    Serial.println(freeDirs[currentHeading] ? "LIVRE" : "BLOQUEADO");
-
-    // Gira 90 graus para escanear o proximo setor (o 4o setor ja fecha o circulo, sem girar a mais)
-    if (step < 3) {
-      turn(false);
-    }
-  }
-
-  // Apos varrer os 4 setores, o robo esta no ultimo setor; o alinhamento abaixo usa o heading atual
-  int bestHeading = -1;
-  int maxUnknown = -1;
-  float maxDist = -1.0f;
-
-  // 1) Busca entre direcoes livres a com maior quantidade de celulas desconhecidas
-  for (int h = 0; h < 4; ++h) {
-    if (freeDirs[h]) {
-      if (unknownScores[h] > maxUnknown) {
-        maxUnknown = unknownScores[h];
-        maxDist = distances[h] < 0 ? 999.0f : distances[h];
-        bestHeading = h;
-      } else if (unknownScores[h] == maxUnknown) {
-        const float distH = distances[h] < 0 ? 999.0f : distances[h];
-        if (distH > maxDist) {
-          maxDist = distH;
-          bestHeading = h;
-        }
-      }
-    }
-  }
-
-  // 2) Se todas estiverem bloqueadas, escolhe a que tiver maior espaco livre
-  if (bestHeading == -1) {
-    float greatestDistance = -1.0f;
-    for (int h = 0; h < 4; ++h) {
-      const float distH = distances[h] < 0 ? 999.0f : distances[h];
-      if (distH > greatestDistance) {
-        greatestDistance = distH;
-        bestHeading = h;
-      }
-    }
-  }
-
-  Serial.println("-------------------------------------------------------------");
-  Serial.print("  [SCAN 360 CONCLUIDO] Direcao escolhida: ");
-  Serial.print(GridMap::headingChar(bestHeading));
-  Serial.println(". Alinhando o robo...");
-
-  // Alinha o robo com a direcao escolhida
-  const int currentHeading = map.heading();
-  const int turnsToBest = (bestHeading - currentHeading + 4) % 4;
-
-  if (turnsToBest == 1) {
-    turn(false);  // 90 graus a direita
-  } else if (turnsToBest == 2) {
-    turnAround(false);  // 180 graus continuo
-  } else if (turnsToBest == 3) {
-    turn(true);   // 90 graus a esquerda
-  }
-
-  reverseAttempts = 0;
-  Serial.println("  Robo alinhado com sucesso no caminho livre! Prosseguindo...");
-  Serial.println("=============================================================");
-  map.printMap();
+  Serial.println("[RECUPERACAO] Executando meia-volta direta para desobstruir...");
+  turn180(true);
 }
 
 void Navigation::recoverFromStuck() {
@@ -586,21 +397,15 @@ void Navigation::recoverFromStuck() {
   motors.move(-1, -1, Config::VELOCIDADE_RE, Config::VELOCIDADE_RE);
   delay(Config::TEMPO_RE_SEM_SAIDA_MS);
   stop();
-  delay(150);
+  delay(Config::TEMPO_ESTABILIZACAO_MS);
 
-  // 2) Escaneia os lados para ver a melhor opcao de saida
-  const float diagonalLeft = scanner.look(Config::DIAGONAL_E, sensor);
+  // 2) Escaneia rapidamente os lados para ver a melhor opcao de saida
   const float left = scanner.look(Config::ESQUERDA, sensor);
-  const float diagonalRight = scanner.look(Config::DIAGONAL_D, sensor);
   const float right = scanner.look(Config::DIREITA, sensor);
   scanner.position(Config::FRENTE);
 
-  const float dl = diagonalLeft < 0 ? 999.0f : diagonalLeft;
-  const float el = left < 0 ? 999.0f : left;
-  const float dr = diagonalRight < 0 ? 999.0f : diagonalRight;
-  const float er = right < 0 ? 999.0f : right;
-  const float spaceLeft = dl < el ? dl : el;
-  const float spaceRight = dr < er ? dr : er;
+  const float spaceLeft = left < 0 ? 999.0f : left;
+  const float spaceRight = right < 0 ? 999.0f : right;
 
   if (spaceLeft > Config::LIMITE_CM || spaceRight > Config::LIMITE_CM) {
     const bool chooseLeft = spaceLeft >= spaceRight;
@@ -608,7 +413,7 @@ void Navigation::recoverFromStuck() {
     Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
     turn(chooseLeft);
   } else {
-    Serial.println("Laterais com pouco espaco: executando meia-volta de 180 graus...");
+    Serial.println("Laterais bloqueadas: executando meia-volta de 180 graus...");
     turn180(spaceLeft >= spaceRight);
   }
   map.printMap();

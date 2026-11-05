@@ -58,8 +58,8 @@ constexpr unsigned long PROTECAO_ECO_JANELA_MS = 400;
 // ==============================================================================
 // TEMPOS DE MANOBRA E ESTABILIZAÇÃO (EM MILISSEGUNDOS)
 // ==============================================================================
-constexpr unsigned long TEMPO_ESTABILIZACAO_MS = 180;  // Pausa para estabilizar o chassi antes de medir
-constexpr unsigned long TEMPO_SERVO_MS = 300;          // Tempo para o servo estabilizar no angulo
+constexpr unsigned long TEMPO_ESTABILIZACAO_MS = 150;  // Pausa para estabilizar o chassi antes de medir
+constexpr unsigned long TEMPO_SERVO_MS = 250;          // Tempo para o servo estabilizar no angulo
 constexpr unsigned long TEMPO_GIRO_MS = 400;           // Duracao do giro de 90 graus
 constexpr unsigned long TEMPO_GIRO_180_MS = 800;       // Duracao da meia-volta (180 graus continuo)
 constexpr unsigned long TEMPO_RE_MS = 450;             // Duracao do recuo padrao
