@@ -135,14 +135,12 @@ bool Navigation::isOscillating() const {
 
 float Navigation::calculateDirectionScore(int headingDir, float openSpaceCm) const {
   const int unknown = map.unknownAhead(headingDir);
-  const int visited = map.visitedAhead(headingDir);
   const float space = openSpaceCm < 0 ? 100.0f : (openSpaceCm > 100.0f ? 100.0f : openSpaceCm);
 
-  // Heuristica do Grupo 4 (Exploracao com reducao de repeticao de trajeto):
+  // Heuristica do Grupo 4:
   // +15 pts por celula desconhecida (exploracao de novas fronteiras)
-  // +0.5 pt por cm de espaco livre (caminho seguro e aberto)
-  // -12 pts por celula ja visitada (penaliza retorno a areas exploradas)
-  return (unknown * 15.0f) + (space * 0.5f) - (visited * 12.0f);
+  // +1.0 pt por cm de espaco livre (caminho seguro e aberto)
+  return (unknown * 15.0f) + space;
 }
 
 void Navigation::turn(bool left) {
@@ -264,52 +262,78 @@ void Navigation::analyzeObstacle() {
     return;
   }
 
-  // 5. Somente se a frente estiver BLOQUEADA, decide para onde virar:
-  const bool leftFree = isFree(diagonalLeft) && isFree(left);
-  const bool rightFree = isFree(diagonalRight) && isFree(right);
+  // 5. Decisao equilibrada do melhor caminho de saida (sem vicio para a direita)
+  const float dl = diagonalLeft < 0 ? 300.0f : diagonalLeft;
+  const float el = left < 0 ? 300.0f : left;
+  const float dr = diagonalRight < 0 ? 300.0f : diagonalRight;
+  const float er = right < 0 ? 300.0f : right;
 
-  // Espaco livre medido de cada lado (sem eco = muito espaco)
-  const float dl = diagonalLeft < 0 ? 999.0f : diagonalLeft;
-  const float el = left < 0 ? 999.0f : left;
-  const float dr = diagonalRight < 0 ? 999.0f : diagonalRight;
-  const float er = right < 0 ? 999.0f : right;
-  const float openLeft = dl < el ? dl : el;
-  const float openRight = dr < er ? dr : er;
+  // Folga calculada ponderando o setor lateral (70%) e a diagonal (30%)
+  const float spaceLeft = (el * 0.7f) + (dl * 0.3f);
+  const float spaceRight = (er * 0.7f) + (dr * 0.3f);
+  const float minLeft = dl < el ? dl : el;
+  const float minRight = dr < er ? dr : er;
 
-  if (leftFree || rightFree) {
-    bool chooseLeft = leftFree;
+  const bool leftViable = (el > Config::LIMITE_CM && dl > Config::MUITO_PERTO_CM);
+  const bool rightViable = (er > Config::LIMITE_CM && dr > Config::MUITO_PERTO_CM);
 
-    if (leftFree && rightFree) {
-      const float scoreLeft = calculateDirectionScore(map.headingLeft(), openLeft);
-      const float scoreRight = calculateDirectionScore(map.headingRight(), openRight);
+  bool chooseLeft = false;
 
-      Serial.print("  [HEURISTICA] Score Esquerda: ");
-      Serial.print(scoreLeft, 1);
-      Serial.print(" | Score Direita: ");
-      Serial.println(scoreRight, 1);
+  if (leftViable && !rightViable) {
+    chooseLeft = true;
+  } else if (!leftViable && rightViable) {
+    chooseLeft = false;
+  } else if (leftViable && rightViable) {
+    // Ambos os lados estao viaveis: avalia heuristicas e espaco livre
+    const float scoreLeft = calculateDirectionScore(map.headingLeft(), spaceLeft);
+    const float scoreRight = calculateDirectionScore(map.headingRight(), spaceRight);
 
-      if (fabsf(scoreLeft - scoreRight) > 1.5f) {
-        chooseLeft = scoreLeft > scoreRight;
-      } else {
-        chooseLeft = openLeft >= openRight;
-      }
+    Serial.print("  [HEURISTICA] Score Esquerda: ");
+    Serial.print(scoreLeft, 1);
+    Serial.print(" | Score Direita: ");
+    Serial.println(scoreRight, 1);
+
+    if (fabsf(scoreLeft - scoreRight) > 2.0f) {
+      chooseLeft = scoreLeft > scoreRight;
+    } else {
+      preferLeft = !preferLeft;
+      chooseLeft = preferLeft;
+    }
+  } else {
+    // ENCURRALADO: Nenhum dos lados tem folga ideal
+    // Avalia rigorosamente qual lado oferece a melhor saida:
+    if (fabsf(spaceLeft - spaceRight) > 3.0f) {
+      // Um lado claramente tem mais espaco que o outro:
+      chooseLeft = (spaceLeft > spaceRight);
+      Serial.print("[ENCURRALADO] Saida com maior espaco: ");
+      Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
+    } else {
+      // Espaco similar em ambos os lados (quina simetrica):
+      // Alterna o lado de fuga para nunca ficar preso virando sempre para o mesmo lado!
+      preferLeft = !preferLeft;
+      chooseLeft = preferLeft;
+      Serial.print("[ENCURRALADO SIMETRICO] Alternando fuga para: ");
+      Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
     }
 
-    Serial.print("Frente bloqueada. Escolhendo melhor caminho: ");
-    Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
-    turn(chooseLeft);
-    map.printMap();
-  } else if (openLeft > Config::LIMITE_CM || openRight > Config::LIMITE_CM) {
-    // Um dos lados tem mais espaco que o limite: vira para ele diretamente
-    const bool chooseLeft = openLeft >= openRight;
-    Serial.print("Virando para o lado com maior folga: ");
-    Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
-    turn(chooseLeft);
-    map.printMap();
-  } else {
-    Serial.println("Frente e ambos os lados bloqueados: meia-volta de 180 graus...");
-    turn180(openLeft >= openRight);
+    // Se houver espaco minimo para giro de 90 graus em algum lado, gira 90:
+    if (minLeft > Config::LIMITE_CM || minRight > Config::LIMITE_CM) {
+      turn(chooseLeft);
+      map.printMap();
+      return;
+    } else {
+      // Bloqueio severo em ambos os lados: executa meia-volta para o lado escolhido
+      Serial.print("[QUINA SEVERA] Executando meia-volta (180) pela ");
+      Serial.println(chooseLeft ? "ESQUERDA..." : "DIREITA...");
+      turn180(chooseLeft);
+      return;
+    }
   }
+
+  Serial.print("Frente bloqueada. Escolhendo melhor caminho: ");
+  Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
+  turn(chooseLeft);
+  map.printMap();
 }
 
 void Navigation::turn180(bool turnLeft180) {
@@ -346,7 +370,7 @@ void Navigation::escapeCorner() {
   stop();
   Serial.println();
   Serial.println("=============================================================");
-  Serial.println("[PRESO EM QUINA] Recuando e executando meia-volta...");
+  Serial.println("[PRESO EM QUINA] Recuando e buscando a melhor saida de fuga...");
   Serial.println("=============================================================");
 
   // 1) Recua centimetros a mais para se afastar da quina
@@ -355,10 +379,33 @@ void Navigation::escapeCorner() {
   stop();
   delay(Config::TEMPO_ESTABILIZACAO_MS);
 
-  // 2) Meia-volta para sair da quina
-  const bool direction = escapeLeft;
-  escapeLeft = !escapeLeft;
-  turnAround(direction);
+  // 2) Escaneia os lados para ver qual oferece a melhor saida
+  const float diagonalLeft = scanner.look(Config::DIAGONAL_E, sensor);
+  const float left = scanner.look(Config::ESQUERDA, sensor);
+  const float diagonalRight = scanner.look(Config::DIAGONAL_D, sensor);
+  const float right = scanner.look(Config::DIREITA, sensor);
+  scanner.position(Config::FRENTE);
+
+  const float dl = diagonalLeft < 0 ? 300.0f : diagonalLeft;
+  const float el = left < 0 ? 300.0f : left;
+  const float dr = diagonalRight < 0 ? 300.0f : diagonalRight;
+  const float er = right < 0 ? 300.0f : right;
+
+  const float spaceLeft = (el * 0.7f) + (dl * 0.3f);
+  const float spaceRight = (er * 0.7f) + (dr * 0.3f);
+
+  bool escapeDir = false;
+  if (fabsf(spaceLeft - spaceRight) > 2.0f) {
+    escapeDir = spaceLeft > spaceRight;
+  } else {
+    escapeLeft = !escapeLeft;
+    escapeDir = escapeLeft;
+  }
+
+  Serial.print("Saida de fuga escolhida: ");
+  Serial.println(escapeDir ? "ESQUERDA" : "DIREITA");
+
+  turnAround(escapeDir);
   scanner.position(Config::FRENTE);
 
   reverseAttempts = 0;
@@ -367,8 +414,9 @@ void Navigation::escapeCorner() {
 }
 
 void Navigation::scan360AndRecover() {
-  Serial.println("[RECUPERACAO] Executando meia-volta direta para desobstruir...");
-  turn180(true);
+  Serial.println("[RECUPERACAO] Executando meia-volta para desobstruir...");
+  preferLeft = !preferLeft;
+  turn180(preferLeft);
 }
 
 void Navigation::recoverFromStuck() {
@@ -403,21 +451,30 @@ void Navigation::recoverFromStuck() {
   const float right = scanner.look(Config::DIREITA, sensor);
   scanner.position(Config::FRENTE);
 
-  const float dl = diagonalLeft < 0 ? 999.0f : diagonalLeft;
-  const float el = left < 0 ? 999.0f : left;
-  const float dr = diagonalRight < 0 ? 999.0f : diagonalRight;
-  const float er = right < 0 ? 999.0f : right;
-  const float spaceLeft = dl < el ? dl : el;
-  const float spaceRight = dr < er ? dr : er;
+  const float dl = diagonalLeft < 0 ? 300.0f : diagonalLeft;
+  const float el = left < 0 ? 300.0f : left;
+  const float dr = diagonalRight < 0 ? 300.0f : diagonalRight;
+  const float er = right < 0 ? 300.0f : right;
+
+  const float spaceLeft = (el * 0.7f) + (dl * 0.3f);
+  const float spaceRight = (er * 0.7f) + (dr * 0.3f);
+
+  bool chooseLeft = false;
+  if (fabsf(spaceLeft - spaceRight) > 2.0f) {
+    chooseLeft = spaceLeft > spaceRight;
+  } else {
+    preferLeft = !preferLeft;
+    chooseLeft = preferLeft;
+  }
 
   if (spaceLeft > Config::LIMITE_CM || spaceRight > Config::LIMITE_CM) {
-    const bool chooseLeft = spaceLeft >= spaceRight;
     Serial.print("Melhor saida encontrada: ");
     Serial.println(chooseLeft ? "ESQUERDA" : "DIREITA");
     turn(chooseLeft);
   } else {
-    Serial.println("Laterais bloqueadas: executando meia-volta de 180 graus...");
-    turn180(spaceLeft >= spaceRight);
+    Serial.print("Laterais bloqueadas: executando meia-volta de 180 graus pela ");
+    Serial.println(chooseLeft ? "ESQUERDA..." : "DIREITA...");
+    turn180(chooseLeft);
   }
   map.printMap();
 }
