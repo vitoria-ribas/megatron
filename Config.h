@@ -96,4 +96,11 @@ constexpr unsigned long TEMPO_LIVRE_PARA_RESET_MS = 2500;
 constexpr bool SEM_ECO_LIVRE = true;
 constexpr int IMPRIMIR_MAPA_A_CADA_N_CELULAS = 4;
 
+// ==============================================================================
+// CONFIGURAÇÕES DO SERVIDOR WEB E WI-FI
+// ==============================================================================
+constexpr const char* WIFI_SSID = "Megatron";
+constexpr const char* WIFI_PASS = "12345678";
+constexpr uint16_t PORTA_WEB = 80;
+
 }  // namespace Config

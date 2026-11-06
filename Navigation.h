@@ -16,6 +16,8 @@ class Navigation {
   bool begin();
   void update();
 
+  const GridMap& getMap() const { return map; }
+
  private:
   MotorController& motors;
   DistanceSensor& sensor;

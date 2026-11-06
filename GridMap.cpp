@@ -7,23 +7,30 @@ void GridMap::begin() {
 }
 
 void GridMap::reset() {
-  for (int r = 0; r < TAMANHO; ++r) {
-    for (int c = 0; c < TAMANHO; ++c) {
-      cells[r][c] = DESCONHECIDO;
-    }
-  }
-  posX = ORIGEM;
-  posY = ORIGEM;
+  cells.clear();
+  wx = 0;
+  wy = 0;
   dir = 0;
+  pathLen = 0;
+  appendPath();
   markVisited();
 }
 
+void GridMap::appendPath() {
+  if (pathLen >= MAX_PATH) {
+    return;
+  }
+  pathX[pathLen] = wx;
+  pathY[pathLen] = wy;
+  ++pathLen;
+}
+
 int GridMap::x() const {
-  return posX;
+  return wx;
 }
 
 int GridMap::y() const {
-  return posY;
+  return wy;
 }
 
 int GridMap::heading() const {
@@ -59,10 +66,6 @@ void GridMap::dxdy(int direction, int& dx, int& dy) {
   }
 }
 
-bool GridMap::inBounds(int gx, int gy) {
-  return gx >= 0 && gx < TAMANHO && gy >= 0 && gy < TAMANHO;
-}
-
 char GridMap::headingChar(int direction) {
   switch (direction) {
     case 0:
@@ -77,20 +80,18 @@ char GridMap::headingChar(int direction) {
 }
 
 void GridMap::markVisited() {
-  if (inBounds(posX, posY) && cells[posY][posX] == DESCONHECIDO) {
-    cells[posY][posX] = LIVRE;
-  }
+  cells[std::make_pair(wx, wy)] = LIVRE;
 }
 
 void GridMap::markObstacle(int direction) {
   int dx, dy;
   dxdy(direction, dx, dy);
 
-  const int gx = posX + dx;
-  const int gy = posY + dy;
+  const int gx = wx + dx;
+  const int gy = wy + dy;
 
-  if (inBounds(gx, gy) && cells[gy][gx] == DESCONHECIDO) {
-    cells[gy][gx] = OBSTACULO;
+  if (cells.find(std::make_pair(gx, gy)) == cells.end()) {
+    cells[std::make_pair(gx, gy)] = OBSTACULO;
   }
 }
 
@@ -100,11 +101,10 @@ void GridMap::markRay(int direction, float distanceCm) {
 
   if (distanceCm < 0) {
     for (int i = 1; i <= ALCANCE_AVALIACAO; ++i) {
-      const int gx = posX + dx * i;
-      const int gy = posY + dy * i;
-      if (!inBounds(gx, gy)) break;
-      if (cells[gy][gx] == DESCONHECIDO) {
-        cells[gy][gx] = LIVRE;
+      const int gx = wx + dx * i;
+      const int gy = wy + dy * i;
+      if (cellAt(gx, gy) == DESCONHECIDO) {
+        cells[std::make_pair(gx, gy)] = LIVRE;
       }
     }
     return;
@@ -114,19 +114,18 @@ void GridMap::markRay(int direction, float distanceCm) {
   const int limit = targetCell < ALCANCE_AVALIACAO ? targetCell : ALCANCE_AVALIACAO;
 
   for (int i = 1; i < limit; ++i) {
-    const int gx = posX + dx * i;
-    const int gy = posY + dy * i;
-    if (!inBounds(gx, gy)) break;
-    if (cells[gy][gx] == DESCONHECIDO) {
-      cells[gy][gx] = LIVRE;
+    const int gx = wx + dx * i;
+    const int gy = wy + dy * i;
+    if (cellAt(gx, gy) == DESCONHECIDO) {
+      cells[std::make_pair(gx, gy)] = LIVRE;
     }
   }
 
   if (limit >= 1 && limit <= ALCANCE_AVALIACAO) {
-    const int gx = posX + dx * limit;
-    const int gy = posY + dy * limit;
-    if (inBounds(gx, gy) && cells[gy][gx] != LIVRE) {
-      cells[gy][gx] = OBSTACULO;
+    const int gx = wx + dx * limit;
+    const int gy = wy + dy * limit;
+    if (cellAt(gx, gy) != LIVRE) {
+      cells[std::make_pair(gx, gy)] = OBSTACULO;
     }
   }
 }
@@ -135,16 +134,11 @@ void GridMap::stepForward() {
   int dx, dy;
   dxdy(dir, dx, dy);
 
-  posX += dx;
-  posY += dy;
-
-  if (!inBounds(posX, posY)) {
-    posX -= dx;
-    posY -= dy;
-    return;
-  }
+  wx += dx;
+  wy += dy;
 
   markVisited();
+  appendPath();
 }
 
 void GridMap::turnLeft() {
@@ -161,12 +155,9 @@ int GridMap::unknownAhead(int direction) const {
 
   int count = 0;
   for (int i = 1; i <= ALCANCE_AVALIACAO; ++i) {
-    const int gx = posX + dx * i;
-    const int gy = posY + dy * i;
-    if (!inBounds(gx, gy)) {
-      break;
-    }
-    if (cells[gy][gx] == DESCONHECIDO) {
+    const int gx = wx + dx * i;
+    const int gy = wy + dy * i;
+    if (cells.find(std::make_pair(gx, gy)) == cells.end()) {
       ++count;
     }
   }
@@ -179,25 +170,52 @@ int GridMap::visitedAhead(int direction) const {
 
   int count = 0;
   for (int i = 1; i <= ALCANCE_AVALIACAO; ++i) {
-    const int gx = posX + dx * i;
-    const int gy = posY + dy * i;
-    if (!inBounds(gx, gy)) {
-      break;
-    }
-    if (cells[gy][gx] == LIVRE) {
+    const int gx = wx + dx * i;
+    const int gy = wy + dy * i;
+    if (cellAt(gx, gy) == LIVRE) {
       ++count;
     }
   }
   return count;
 }
 
+GridMap::Cell GridMap::cellAt(int gx, int gy) const {
+  const auto it = cells.find(std::make_pair(gx, gy));
+  if (it == cells.end()) {
+    return DESCONHECIDO;
+  }
+  return it->second;
+}
+
+GridMap::Cell GridMap::cellInDirection(int direction) const {
+  int dx, dy;
+  dxdy(direction, dx, dy);
+  return cellAt(wx + dx, wy + dy);
+}
+
+int GridMap::pathLength() const {
+  return pathLen;
+}
+
+int GridMap::pathPointX(int index) const {
+  if (index < 0 || index >= pathLen) {
+    return 0;
+  }
+  return pathX[index];
+}
+
+int GridMap::pathPointY(int index) const {
+  if (index < 0 || index >= pathLen) {
+    return 0;
+  }
+  return pathY[index];
+}
+
 int GridMap::visitedCount() const {
   int count = 0;
-  for (int r = 0; r < TAMANHO; ++r) {
-    for (int c = 0; c < TAMANHO; ++c) {
-      if (cells[r][c] == LIVRE) {
-        ++count;
-      }
+  for (const auto& entry : cells) {
+    if (entry.second == LIVRE) {
+      ++count;
     }
   }
   return count;
@@ -205,21 +223,21 @@ int GridMap::visitedCount() const {
 
 int GridMap::obstacleCount() const {
   int count = 0;
-  for (int r = 0; r < TAMANHO; ++r) {
-    for (int c = 0; c < TAMANHO; ++c) {
-      if (cells[r][c] == OBSTACULO) {
-        ++count;
-      }
+  for (const auto& entry : cells) {
+    if (entry.second == OBSTACULO) {
+      ++count;
     }
   }
   return count;
 }
 
 int GridMap::unknownCount() const {
+  int minX, minY, maxX, maxY;
+  bounds(minX, minY, maxX, maxY);
   int count = 0;
-  for (int r = 0; r < TAMANHO; ++r) {
-    for (int c = 0; c < TAMANHO; ++c) {
-      if (cells[r][c] == DESCONHECIDO) {
+  for (int gy = minY; gy <= maxY; ++gy) {
+    for (int gx = minX; gx <= maxX; ++gx) {
+      if (cellAt(gx, gy) == DESCONHECIDO) {
         ++count;
       }
     }
@@ -227,18 +245,42 @@ int GridMap::unknownCount() const {
   return count;
 }
 
+void GridMap::bounds(int& minX, int& minY, int& maxX, int& maxY) const {
+  minX = maxX = wx;
+  minY = maxY = wy;
+
+  for (const auto& entry : cells) {
+    const int gx = entry.first.first;
+    const int gy = entry.first.second;
+    if (gx < minX) minX = gx;
+    if (gx > maxX) maxX = gx;
+    if (gy < minY) minY = gy;
+    if (gy > maxY) maxY = gy;
+  }
+
+  for (int i = 0; i < pathLen; ++i) {
+    if (pathX[i] < minX) minX = pathX[i];
+    if (pathX[i] > maxX) maxX = pathX[i];
+    if (pathY[i] < minY) minY = pathY[i];
+    if (pathY[i] > maxY) maxY = pathY[i];
+  }
+}
+
 void GridMap::printMap() const {
+  int minX, minY, maxX, maxY;
+  bounds(minX, minY, maxX, maxY);
+
   Serial.println();
   Serial.println("=========== MAPA ===========");
 
-  for (int r = 0; r < TAMANHO; ++r) {
-    for (int c = 0; c < TAMANHO; ++c) {
-      if (c == posX && r == posY) {
+  for (int gy = minY; gy <= maxY; ++gy) {
+    for (int gx = minX; gx <= maxX; ++gx) {
+      if (gx == wx && gy == wy) {
         Serial.print('R');
         continue;
       }
 
-      switch (cells[r][c]) {
+      switch (cellAt(gx, gy)) {
         case LIVRE:
           Serial.print('o');
           break;
@@ -257,12 +299,14 @@ void GridMap::printMap() const {
   Serial.print(visitedCount());
   Serial.print(" Obstaculos=");
   Serial.print(obstacleCount());
-  Serial.print(" Desconhecidas=");
-  Serial.print(unknownCount());
+  Serial.print(" Extensao=");
+  Serial.print(maxX - minX + 1);
+  Serial.print("x");
+  Serial.print(maxY - minY + 1);
   Serial.print(" Posicao=(");
-  Serial.print(posX - ORIGEM);
+  Serial.print(wx);
   Serial.print(",");
-  Serial.print(ORIGEM - posY);
+  Serial.print(wy);
   Serial.print(") Direcao=");
   Serial.println(headingChar(dir));
 
