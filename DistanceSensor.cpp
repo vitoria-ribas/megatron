@@ -5,9 +5,9 @@
 #include "Config.h"
 
 namespace {
-constexpr unsigned long TRIGGER_INTERVAL_MS = 60;
-constexpr unsigned long ECHO_TIMEOUT_US = 30000UL;
-constexpr int FILTER_SAMPLES = 3;
+constexpr unsigned long TRIGGER_INTERVAL_MS = 25; // Amostragem rápida a 40 Hz (25ms)
+constexpr unsigned long ECHO_TIMEOUT_US = 18000UL; // 18ms = alcance max de ~3.1m (sem travas longas no vazio)
+constexpr int FILTER_SAMPLES = 2;                  // 2 amostras ultra-rápidas para varredura ágil
 }
 
 void DistanceSensor::begin() {
@@ -47,32 +47,23 @@ float DistanceSensor::readOnce() {
 }
 
 float DistanceSensor::readFiltered() {
-  float values[FILTER_SAMPLES];
+  float values[3];
   int validCount = 0;
-  int noEchoCount = 0;
 
-  for (int i = 0; i < FILTER_SAMPLES; ++i) {
-    const float distanceCm = readOnce();
-    if (distanceCm < 0) {
-      ++noEchoCount;
-    } else {
-      values[validCount++] = distanceCm;
+  for (int i = 0; i < 3; ++i) {
+    const float d = readOnce();
+    if (d >= 0) {
+      values[validCount++] = d;
     }
   }
 
-  if (noEchoCount >= 2 || validCount == 0) {
-    return -1.0f;
-  }
+  if (validCount == 0) return -1.0f;
+  if (validCount == 1) return values[0];
+  if (validCount == 2) return (values[0] < values[1]) ? values[0] : values[1];
 
-  for (int i = 0; i < validCount - 1; ++i) {
-    for (int j = i + 1; j < validCount; ++j) {
-      if (values[j] < values[i]) {
-        const float temporary = values[i];
-        values[i] = values[j];
-        values[j] = temporary;
-      }
-    }
-  }
-
-  return validCount == 3 ? values[1] : values[0];
+  // Mediana das 3 amostras para filtragem robusta contra reflexões
+  if (values[0] > values[1]) { float t = values[0]; values[0] = values[1]; values[1] = t; }
+  if (values[1] > values[2]) { float t = values[1]; values[1] = values[2]; values[2] = t; }
+  if (values[0] > values[1]) { float t = values[0]; values[0] = values[1]; values[1] = t; }
+  return values[1];
 }

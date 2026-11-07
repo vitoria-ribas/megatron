@@ -9,7 +9,7 @@ class GridMap {
  public:
   enum Cell : uint8_t { DESCONHECIDO = 0, LIVRE = 1, OBSTACULO = 2 };
 
-  static const int ALCANCE_AVALIACAO = 3;
+  static const int ALCANCE_AVALIACAO = 10;
   static const int MAX_PATH = 1024;
 
   void begin();
@@ -28,6 +28,7 @@ class GridMap {
   void markVisited();
   void markObstacle(int direction);
   void markRay(int direction, float distanceCm);
+  void markRayAngle(float angleDegrees, float distanceCm);
   int unknownAhead(int direction) const;
   int visitedAhead(int direction) const;
 

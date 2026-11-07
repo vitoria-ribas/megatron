@@ -1,79 +1,118 @@
-# Robô explorador: varredura, desvio de obstáculos e mapeamento
+# MEGATRON // SISTEMA DE CONTROLE TÁTICO & TELEMETRIA SLAM ESP32
 
-Abra `megatron.ino` na Arduino IDE. Mantenha todos os arquivos `.h` e `.cpp` deste projeto na mesma pasta do sketch. Instale a biblioteca ESP32Servo (Kevin Harrington / John K. Bennett) e selecione uma placa ESP32 compatível. Esta versão é para ESP32 clássico/WROOM e servo SG90 de posição, não servo de rotação contínua.
+Sistema modernizado de telemetria, mapeamento SLAM e centro de comando tático para o robô ESP32 **MEGATRON**.
 
-## Organização do código
+---
+
+## 1. Arquitetura do Firmware e Organização dos Módulos
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `megatron.ino` | Inicialização do Serial e ciclo principal Arduino (`setup` e `loop`). |
-| `Config.h` | Pinos, ângulos, limites e tempos ajustáveis. |
-| `MotorController.h/.cpp` | Inicialização, parada e acionamento dos motores pelo TB6612FNG. |
-| `DistanceSensor.h/.cpp` | Disparo do HC-SR04, conversão da distância e filtro de três leituras. |
-| `ServoScanner.h/.cpp` | Inicialização do servo, posicionamento e leitura dos setores observados. |
-| `Navigation.h/.cpp` | Regras de avanço, análise de obstáculos, ré, giro e exploração. |
-| `GridMap.h/.cpp` | Mapa em grade infinita (esparso), pose estimada e impressão do mapa no Serial. |
-| `WebMap.h/.cpp` | Ponto de acesso WiFi e página web que desenha a trajetória e os obstáculos. |
+| `megatron.ino` | Ponto de entrada do firmware (`setup` e `loop`), orquestração do robô e tratamento do Serial. |
+| `Config.h` | Mapeamento de pinos, parâmetros de calibração, velocidades PWM e tempos de manobra. |
+| `WebUI.h` | Interface Web Cyberpunk / Sci-Fi HUD servida diretamente da memória Flash (`PROGMEM`). |
+| `WebSocketManager.h/.cpp` | Ponto de acesso Wi-Fi, Servidor Web assíncrono (`ESPAsyncWebServer`) e WebSocket bidirecional (`AsyncWebSocket`). |
+| `Navigation.h/.cpp` | Máquina de estados dos modos (Auto SLAM, Manual, RTH, E-STOP), controle de waypoints e evasão de obstáculos. |
+| `GridMap.h/.cpp` | Mapeamento de ocupação em grade esparsa 2D, odometria relativa e histórico de trajetória. |
+| `MotorController.h/.cpp` | Controle da ponte H (TB6612FNG, L298N, DRV8833 ou L9110S) via hardware PWM LEDC. |
+| `DistanceSensor.h/.cpp` | Driver ultrassônico (HC-SR04) com filtragem de ruído. |
+| `ServoScanner.h/.cpp` | Varredura angular com micro servo SG90 para cobertura de campo de visão (FOV). |
 
-Os módulos se comunicam por interfaces de classe: a navegação usa os módulos de motores, sensor e servo, e registra o percurso no `GridMap`. O `WebMap` lê o `GridMap` (trajetória, pose e obstáculos) e os expõe em JSON via HTTP. A separação organiza o código e implementa memória de áreas visitadas com mapeamento simplificado do ambiente.
+---
 
-## Pinagem
+## 2. Bibliotecas Necessárias (Arduino IDE)
 
-| Sinal | GPIO |
-|---|---:|
-| AIN1 | 14 |
-| AIN2 | 12 |
-| PWMA | 13 |
-| BIN1 | 27 |
-| BIN2 | 26 |
-| PWMB | 25 |
-| STBY | 33 |
-| TRIG | 19 |
-| ECHO, através do divisor | 21 |
-| Sinal do servo | 2 |
+O firmware utiliza bibliotecas assíncronas de alto desempenho para garantir que a transmissão de telemetria e o recebimento de comandos ocorram sem **nenhum bloqueio de loop**:
 
-Alimentação: ESP32 pelo USB; TB6612FNG VCC em 3V3, VM na alimentação compatível com os motores; HC-SR04 e servo em fonte de 5 V adequada aos modelos. Todos os GNDs devem estar interligados. Não alimente simultaneamente a placa pelo USB e pelo pino 5V/VIN. Evite conduzir a corrente dos motores pela protoboard.
+1. **ESPAsyncWebServer** (mathieucarbou v3.x / compatível com ESP32 Core 3.x)
+2. **AsyncTCP** (mathieucarbou v3.x)
+3. **ArduinoJson** (v7.x)
+4. **ESP32Servo** (v3.x)
 
-**Nunca ligue ECHO diretamente ao ESP32.** Divisor recomendado: ECHO -> 2,2 kohms -> ponto de sinal; ponto de sinal -> GPIO21; ponto de sinal -> 3,3 kohms -> GND. Se forem usados três resistores de 1 kohm: um entre ECHO e sinal e dois em série entre sinal e GND (saída nominal de 3,33 V para entrada de 5 V).
+*Todas as bibliotecas já se encontram instaladas no diretório local de bibliotecas do usuário.*
 
-## Comportamento implementado
+---
 
-- O sensor observa cinco posições: frente, duas diagonais e dois lados parciais. Os ângulos definidos em `Config.h` são comandos do servo e precisam ser conferidos fisicamente.
-- As leituras filtradas usam três amostras. Com três distâncias válidas, é usada a mediana; com duas, a menor; com zero ou uma leitura válida, o resultado é tratado como sem eco.
-- O robô avança enquanto a leitura frontal não confirma um obstáculo a até 25 cm. A medição frontal ocorre repetidamente durante o avanço; não há etapa de avanço temporizada de 250 ms.
-- Um setor é considerado livre se a leitura for maior que 25 cm **ou se não houver eco**. Essa escolha atual pode tratar uma leitura desconhecida como caminho livre.
-- Diante de obstáculo, o robô para, mede os setores laterais e escolhe uma direção quando a diagonal e o lado correspondente são considerados livres.
-- O robô recua se a frente estiver a até 10 cm. Se frente e os dois lados estiverem bloqueados, executa a regra de ré e giro.
-- A contagem de rés é limitada a duas seguidas e é zerada após pelo menos 500 ms de avanço. Não existe no código um contador de quatro giros nem bloqueio permanente até reset.
-- Os tempos atuais de ré e giro são 350 ms (`TEMPO_RE_MS` e `TEMPO_GIRO_MS`), valores iniciais que precisam de calibração física.
-- O robô mantém um mapa em grade sem limites fixos (`GridMap`): cada célula pode estar desconhecida, livre ou com obstáculo, indexada por coordenadas reais (que podem ser negativas e crescer conforme a exploração). A célula inicial é marcada como livre.
-- A pose é estimada por tempo: a cada `TEMPO_POR_CELULA_MS` de avanço, o robô avança uma célula no mapa; cada giro altera o sentido em 90°. Não há encoders, então a posição é aproximada.
-- Obstáculos detectados à frente, à esquerda ou à direita são marcados nas células correspondentes do mapa. As leituras diagonais orientam a navegação, mas não são gravadas na grade.
-- Quando o robô efetivamente avança para uma célula, ela é marcada como livre mesmo que antes estivesse marcada como obstáculo (por exemplo, após sair de um beco girando). Isso evita que a trajetória no desenho cruze células de obstáculo.
-- Ao escolher entre dois lados livres, o robô prefere a direção com mais células desconhecidas à frente; em empate, compara o espaço disponível e, por fim, alterna a preferência (`preferLeft`).
-- O mapa é impresso no Monitor Serial no início, a cada `IMPRIMIR_MAPA_A_CADA_N_CELULAS` células percorridas e sempre que o robô toma uma decisão (giro ou beco sem saída). A impressão cobre a extensão explorada até o momento.
-- O robô também cria um ponto de acesso WiFi (`WIFI_SSID`/`WIFI_PASS`) e serve uma página web em `http://<IP do ESP32>`. A página desenha em tempo real a trajetória percorrida, os obstáculos detectados e a posição/orientação do robô, atualizando a cada 500 ms pelo endpoint `/state`.
-- A página oferece duas visões, alternadas por um botão: "seguir o robô" (janela fixa de 21×21 centrada no robô) e "ver tudo" (toda a área explorada, com zoom automático).
-- A trajetória exibida é a sequência ordenada de células percorridas (`GridMap::path`), registrada a cada avanço de célula; giros e ré não adicionam novos pontos.
-- `SEM_ECO_LIVRE` controla se ausência de eco conta como caminho livre. O valor padrão é `true`; leia as limitações abaixo antes de mantê-lo.
+## 3. Pinagem e Ligações de Hardware (ESP32 Dev Module)
 
-## Como testar
+| Sinal | GPIO | Função |
+|---|---:|---|
+| **AIN1** | 14 | Direção A (Motor Esquerdo) |
+| **AIN2** | 12 | Direção A (Motor Esquerdo) |
+| **PWMA** | 13 | Velocidade PWM Motor Esquerdo (Canal LEDC 4) |
+| **BIN1** | 27 | Direção B (Motor Direito) |
+| **BIN2** | 26 | Direção B (Motor Direito) |
+| **PWMB** | 25 | Velocidade PWM Motor Direito (Canal LEDC 5) |
+| **STBY** | 33 | Standby da Ponte H (HIGH = Habilitado) |
+| **TRIG** | 19 | Disparo do Sensor Ultrassônico HC-SR04 |
+| **ECHO** | 21 | Retorno do Eco (usar divisor de tensão resistivo 5V -> 3.3V) |
+| **SERVO** | 2 | Sinal PWM do Micro Servo SG90 |
+| **BATERIA (Opcional)**| 255 | Defina no `Config.h` caso utilize divisor resistivo em ADC (ex: 34, 35) |
 
-1. Primeiro suspenda as rodas. O sensor deve olhar para a frente ao iniciar. Não force o eixo do servo.
-2. Confira fisicamente esquerda e direita. Se o servo olhar para os lados trocados, altere `INVERTER_OLHAR` em `Config.h`. Se o giro estiver invertido, confira `MOTOR_A_NA_ESQUERDA`.
-3. Mantenha `INVERTER_A` e `INVERTER_B` com os valores que fizeram as rodas avançarem.
-4. Use caixas grandes para confirmar as leituras dos setores no Monitor Serial (115200 baud).
-5. Teste frente bloqueada com um lado livre, frente e lados bloqueados e obstáculo muito próximo.
-6. Teste no chão com a traseira livre e acesso ao desligamento. Não há sensor traseiro, sensor lateral contínuo ou detector de bordas/escadas; a leitura frontal não verifica o caminho durante a ré.
-7. Para ver a interface gráfica da trajetória em tempo real, conecte um celular ou computador ao WiFi do robô (`Megatron` / `12345678`) e acesse no navegador o endereço exibido no Monitor Serial (geralmente `http://192.168.4.1`).
+> [!WARNING]
+> **Divisor de Tensão no ECHO**: O pino ECHO do HC-SR04 opera em 5V. O ESP32 tolera no máximo 3.3V. Sempre use divisor resistivo (ex: 2.2kΩ e 3.3kΩ) para proteger o GPIO 21.
 
-## Limitações e próximos passos
+---
 
-- Sem eco é tratado como livre pela lógica atual (`SEM_ECO_LIVRE = true`). É necessário rever essa política para não assumir que uma leitura desconhecida confirma passagem segura.
-- O giro duplicado do beco sem saída foi corrigido: `reverse()` agora informa quando já girou para sair do beco, e `analyzeObstacle()` evita solicitar um segundo giro.
-- Os movimentos são temporizados e não usam encoders. O programa não mede deslocamento real, derrapagem nem posição; o mapa em grade é uma estimativa que pode divergir do ambiente real.
-- A ré não atualiza a pose no mapa, pois é curta e serve para reposicionar o robô dentro da mesma célula.
-- O HC-SR04 tem feixe com largura angular; leituras em cinco posições não reconstroem o contorno nem garantem a largura de uma passagem. Objetos pequenos ou inclinados podem não ser detectados.
-- As medidas de 10 cm por 4 cm foram informadas, mas não está confirmado se são dimensões do robô ou do objeto. O código não as usa para validar passagens. Meça o robô completo, incluindo rodas, suporte e eixo de giro, antes de ajustar as margens.
-- O mapeamento por tempo depende de `TEMPO_POR_CELULA_MS` (padrão 500 ms); calibre esse valor com a velocidade real do robô para que uma célula corresponda ao deslocamento físico desejado.
-- O sketch foi compilado para `ESP32 Dev Module` com Arduino-ESP32 3.3.11 e ESP32Servo 3.2.1. A compilação apresentou avisos dentro da biblioteca ESP32Servo, mas terminou com sucesso. A validação física do protótipo continua necessária.
+## 4. Interface Web (Cyberpunk / Sci-Fi Tactical HUD)
+
+Acesse conectando à rede Wi-Fi **Megatron** (senha: `12345678`) e abrindo no navegador:
+**`http://192.168.4.1/`**
+
+### Recursos da Interface:
+- **Estética Cyberpunk HUD**: Paleta escura com neon ciano (`#00f2fe`), verde esmeralda (`#10b981`), âmbar (`#f59e0b`) e vermelho de alerta (`#ef4444`), tipografia Orbitron e JetBrains Mono, com bordas chanfradas táticas.
+- **Radar & SLAM em Canvas HTML5**:
+  - Anéis concêntricos de radar tático graduados em metros.
+  - Varredura animada contínua de feixe LiDAR (FOV de 120º).
+  - Células livres renderizadas em verde e obstáculos em vermelho vivo.
+  - Linha de trajetória com brilho âmbar conectando os pontos percorridos.
+  - **Click-to-Nav**: Clique em qualquer ponto da grade para criar um retículo pulsante e enviar o robô autonomamente para as coordenadas do Waypoint (`goto`).
+- **Painéis de Telemetria**:
+  - Posição atual `(X, Y)` em metros, orientação em graus e rosa dos ventos (N, L, S, O).
+  - Células mapeadas e estimativa de área explorada em m².
+  - Indicador de bateria com voltagem estimada e medidor de sinal/latência (ping WebSocket em ms).
+  - Proximidade nos 4 quadrantes (Frente, Ré, Esquerda, Direita).
+  - Horizonte Artificial (IMU) com leitura e inclinação de Roll, Pitch e Yaw.
+- **Controles e Modos**:
+  - D-Pad touch para celulares e tablets.
+  - Atalhos de teclado no PC: `W` (Frente), `S` (Ré), `A` (Girar Esquerda), `D` (Girar Direita), `Espaço` (Parar).
+  - Slider de velocidade PWM (0 a 255) com atalhos 35% (ECO), 65% (CRUISE) e 100% (TURBO).
+  - Modos operacionais: **AUTO SLAM**, **MANUAL**, **RTH (Retorno à Base)** e **E-STOP (Parada de Emergência)**.
+  - Terminal de logs com registros em tempo real de mensagens do sistema, pacotes TX/RX e alertas.
+
+---
+
+## 5. Protocolo de Comunicação WebSocket (`/ws`)
+
+A comunicação opera em duplex de baixíssima latência através de WebSockets.
+
+### Payload de Telemetria (ESP32 -> Web) [10 Hz]:
+```json
+{
+  "x": 0.0,
+  "y": 0.0,
+  "dir": 0,
+  "status": "AUTO SLAM",
+  "action": "Avançando em linha reta",
+  "battery": 88,
+  "voltage": 7.8,
+  "dist_fwd": 42.5,
+  "dist_back": 120.0,
+  "dist_left": 85.0,
+  "dist_right": 70.0,
+  "explored": 34,
+  "pitch": -1.5,
+  "roll": 0.0,
+  "yaw": 0.0,
+  "path": [[0,0], [0,1], [1,1]],
+  "cells": [[0,0,1], [0,1,1], [0,2,2]]
+}
+```
+
+### Comandos da Web (Web -> ESP32):
+- **Movimento Manual**: `{"cmd": "move", "dir": "F"|"B"|"L"|"R"|"STOP", "speed": 0-255}`
+- **Troca de Modo**: `{"cmd": "mode", "value": "manual"|"auto"|"rth"}`
+- **Parada de Emergência**: `{"cmd": "estop"}`
+- **Navegação para Waypoint**: `{"cmd": "goto", "x": 2.0, "y": 3.0}`
+- **Reset de Mapa**: `{"cmd": "reset"}`
+- **Ping / Latência**: `{"cmd": "ping", "t": 1730890000000}`

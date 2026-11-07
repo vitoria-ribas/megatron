@@ -89,17 +89,14 @@ void GridMap::markObstacle(int direction) {
 
   const int gx = wx + dx;
   const int gy = wy + dy;
-
-  if (cells.find(std::make_pair(gx, gy)) == cells.end()) {
-    cells[std::make_pair(gx, gy)] = OBSTACULO;
-  }
+  cells[std::make_pair(gx, gy)] = OBSTACULO;
 }
 
 void GridMap::markRay(int direction, float distanceCm) {
   int dx, dy;
   dxdy(direction, dx, dy);
 
-  if (distanceCm < 0) {
+  if (distanceCm < 0 || distanceCm > 250.0f) {
     for (int i = 1; i <= ALCANCE_AVALIACAO; ++i) {
       const int gx = wx + dx * i;
       const int gy = wy + dy * i;
@@ -110,7 +107,7 @@ void GridMap::markRay(int direction, float distanceCm) {
     return;
   }
 
-  const int targetCell = (int)roundf(distanceCm / 12.0f);
+  const int targetCell = (int)roundf(distanceCm / 15.0f);
   const int limit = targetCell < ALCANCE_AVALIACAO ? targetCell : ALCANCE_AVALIACAO;
 
   for (int i = 1; i < limit; ++i) {
@@ -124,9 +121,41 @@ void GridMap::markRay(int direction, float distanceCm) {
   if (limit >= 1 && limit <= ALCANCE_AVALIACAO) {
     const int gx = wx + dx * limit;
     const int gy = wy + dy * limit;
-    if (cellAt(gx, gy) != LIVRE) {
-      cells[std::make_pair(gx, gy)] = OBSTACULO;
+    cells[std::make_pair(gx, gy)] = OBSTACULO;
+  }
+}
+
+void GridMap::markRayAngle(float angleDegrees, float distanceCm) {
+  const float rad = angleDegrees * (PI / 180.0f);
+  const float dx = sinf(rad);
+  const float dy = -cosf(rad);
+
+  if (distanceCm < 0 || distanceCm > 250.0f) {
+    for (int i = 1; i <= ALCANCE_AVALIACAO; ++i) {
+      const int gx = (int)roundf(wx + dx * i);
+      const int gy = (int)roundf(wy + dy * i);
+      if (cellAt(gx, gy) == DESCONHECIDO) {
+        cells[std::make_pair(gx, gy)] = LIVRE;
+      }
     }
+    return;
+  }
+
+  const int targetCell = (int)roundf(distanceCm / 15.0f);
+  const int limit = targetCell < ALCANCE_AVALIACAO ? targetCell : ALCANCE_AVALIACAO;
+
+  for (int i = 1; i < limit; ++i) {
+    const int gx = (int)roundf(wx + dx * i);
+    const int gy = (int)roundf(wy + dy * i);
+    if (cellAt(gx, gy) == DESCONHECIDO) {
+      cells[std::make_pair(gx, gy)] = LIVRE;
+    }
+  }
+
+  if (limit >= 1 && limit <= ALCANCE_AVALIACAO) {
+    const int gx = (int)roundf(wx + dx * limit);
+    const int gy = (int)roundf(wy + dy * limit);
+    cells[std::make_pair(gx, gy)] = OBSTACULO;
   }
 }
 
