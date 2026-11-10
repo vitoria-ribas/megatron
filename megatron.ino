@@ -45,6 +45,8 @@ void setup() {
     delay(2000);
     navegacao.start();
   } else {
+    navegacao.pause();
+    motores.stop();
     Serial.println("[NAV] Aguardando comando via HUD Web (http://192.168.4.1) ou Serial...");
   }
 }

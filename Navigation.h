@@ -80,9 +80,9 @@ class Navigation {
   GridMap map;
 
   YieldCallback yieldCallback = nullptr;
-  OperationalMode currentMode = MODE_AUTO;
+  OperationalMode currentMode = MODE_MANUAL; // Inicia em modo MANUAL seguro aguardando comando
   int cruiseSpeed = Config::VELOCIDADE_FRENTE;
-  const char* currentAction = "Inicializando...";
+  const char* currentAction = "Parado (Aguardando comando na interface)";
 
   // Telemetria dinâmica e sensores
   float lastFrontCm = -1.0f;

@@ -22,7 +22,9 @@ bool WebSocketManager::begin(Navigation& navigation) {
   Serial.printf("[WIFI] Configurando Access Point: %s\n", Config::WIFI_SSID);
 
   WiFi.mode(WIFI_AP);
-  WiFi.setSleep(false); // Mantém o rádio Wi-Fi sempre ativo (evita quedas com placas Intel Wi-Fi)
+  WiFi.persistent(false);
+  WiFi.setSleep(false); // Mantém o rádio Wi-Fi sempre ativo em potência total
+  WiFi.setTxPower(WIFI_POWER_19_5dBm); // Potência máxima de transmissão RF (estabilidade superior)
 
   IPAddress local_ip(192, 168, 4, 1);
   IPAddress gateway(192, 168, 4, 1);
@@ -164,6 +166,7 @@ void WebSocketManager::onWsEvent(AsyncWebSocket* s, AsyncWebSocketClient* client
     case WS_EVT_CONNECT:
       Serial.printf("[WS] Novo cliente #%u conectado de %s\n",
                     client->id(), client->remoteIP().toString().c_str());
+      client->setCloseClientOnQueueFull(false);
       sendFullState(client);
       break;
 
@@ -319,6 +322,7 @@ void WebSocketManager::sendFullState(AsyncWebSocketClient* client) {
 
 void WebSocketManager::broadcastTelemetry(bool includeMap) {
   if (ws.count() == 0 || nav == nullptr) return;
+  if (!ws.availableForWriteAll()) return;
 
   JsonDocument doc;
   const GridMap& map = nav->getMap();

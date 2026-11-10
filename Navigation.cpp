@@ -27,8 +27,10 @@ bool Navigation::begin() {
   map.begin();
   map.printMap();
 
+  stop();
+  advancing = false;
   currentMode = Config::INICIAR_LIGADO ? MODE_AUTO : MODE_MANUAL;
-  currentAction = (currentMode == MODE_AUTO) ? "Avancando em linha reta" : "Parado (Modo Manual)";
+  currentAction = (currentMode == MODE_AUTO) ? "Avancando em linha reta" : "Parado (Aguardando comando na interface)";
   return true;
 }
 
